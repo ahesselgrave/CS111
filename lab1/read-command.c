@@ -4,15 +4,12 @@
 #include "command-internals.h"
 
 #include <error.h>
-
-/* FIXME: You may need to add #include directives, macro definitions,
-   static function definitions, etc.  */
 #include <ctype.h>
 #include <stdio.h>
-/* Define the type 'struct command_stream' here.  This should
-   complete the incomplete type declaration in command.h.  */
 
-// Define a linked list of commands
+#define TT_BUFFER_SIZE 1024
+
+// command_stream holds a linked list of command trees, with each node's command_t being the root pointer
 typedef struct command_stream
 {
   struct command_node
@@ -29,30 +26,33 @@ typedef struct command_stream
 // Treat as regular char:
 // ! % + , - . / : @ ^ _
 
+char *
+read_from_input(int (*get_char) (void *),
+		void *get_char_arg)
+{
+  int bufsize = TT_BUFFER_SIZE;
+  int index = 0;
+  char *buffer = checked_malloc(sizeof(char) * bufsize);
+
+  int c;
+  while ((c = get_char(get_char_arg)) != EOF)
+    {
+      // Put c into the buffer and make sure it wont extend past memory
+      buffer[index++] = c;
+      if (index > bufsize) {
+	bufsize += TT_BUFFER_SIZE;
+	buffer = checked_realloc(buffer, bufsize);
+      }
+    }
+  return buffer;
+}
+       
 command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
-		     void *get_next_byte_argument)
+		       void *get_next_byte_argument)
 {
-  // Read two characters at a time to find two character tokens
-  int first, second;
-  // Other spatulers
-  int linenum = 1,
-    valid_syntax = 0;
-
-  // Initialize first and second before while looping
-  first = get_next_byte(get_next_byte_argument);
-  second = get_next_byte(get_next_byte_argument);
-
-  while (second != EOF && valid_syntax == 0) {
-    // For now, make sure we are getting the input without segfaulting
-    putchar(first);
-    if (first == '\n') linenum++;
-
-    // Get next chars at the end
-    first = second;
-    second = get_next_byte(get_next_byte_argument);
-  }
-  putchar(first);
+  char *buffer = read_from_input(get_next_byte, get_next_byte_argument);
+  printf("%s", buffer);
   return 0;
 }
 
