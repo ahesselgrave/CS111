@@ -52,7 +52,7 @@ make_command_stream (int (*get_next_byte) (void *),
     first = second;
     second = get_next_byte(get_next_byte_argument);
   }
-  
+  putchar(first);
   return 0;
 }
 
