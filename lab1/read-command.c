@@ -141,8 +141,9 @@ tokenize_buffer(char *buffer)
       }
 
       else if ((isalnum(first)|| isSymbol(first)|| isspace(first))
-	       && second == '\n'){
+	      && second == '\n'){
 	push_into_token=false;
+
 	printf("dig-new first: %c, second: %c\n",first,second);
       }
 
@@ -151,11 +152,20 @@ tokenize_buffer(char *buffer)
 	//printf("new-new \n");
       }
 
+      else if ( (isspace(first) && isspace(second)) ||
+		isspace(first) && tok_index == 0) {
+	push_into_token=false;
+      }
+
       //if first and second characters don't belong together then
       //end current node and make a new one
       if(!push_into_token){
+	// if tok_index is still 0 and first is whitespace, don't bother closing the token
+	if (isblank(first) && tok_index == 0) {
+	  continue;
+	}
 	//replace consecutive new lines with ;
-	if(first =='\n' && second == '\n'){
+	else if(first =='\n' && second == '\n'){
 	  tok_buf[tok_index++] = ';';
 	 
 	  //printf("done \n");
@@ -176,9 +186,9 @@ tokenize_buffer(char *buffer)
 	tok_index=0;
 	tok_buf = checked_malloc(sizeof(char) * token_bufsize);
       }
-      else{
-	if(!(first == '\n')){
-	  tok_buf[tok_index++]=first;
+      else {
+	if (first != '\n'){
+	  tok_buf[tok_index++] = first;
 	}
       }
     }
