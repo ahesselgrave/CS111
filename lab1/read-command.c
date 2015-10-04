@@ -1,4 +1,3 @@
-
 // UCLA CS 111 Lab 1 command reading
 
 #include "command.h"
@@ -31,6 +30,10 @@ typedef struct token_stream
     struct token_node *next;
   } *head, *tail;
 } token_stream;
+
+typedef int bool;
+#define true 1
+#define false 0
 
 char *
 read_from_input(int (*get_char) (void *),
@@ -67,6 +70,28 @@ print_tokens(token_stream *ts)
     }
 }
 
+char operators[7] = {';', '|', '&', '(', ')','<','>'};
+bool isOperator(char op){
+  int i;
+  for (i=0; i<7;i++){
+    if (op == operators[i]){
+      return true;
+    }
+  }
+  return false;
+}
+
+char symbols[11]={'!','%','+',',','-','.','/',':','@','^','_'};
+bool isSymbol(char symbol){
+  int i;
+  for (i =0 ;i<11;i++){
+    if(symbol ==symbols[i]){
+      return true;
+    }
+  }
+  return false;
+}
+
 token_stream *
 tokenize_buffer(char *buffer)
 {
@@ -80,62 +105,94 @@ tokenize_buffer(char *buffer)
   token tok_buf = checked_malloc(sizeof(char) * token_bufsize);
   // Read 2 chars at a time.
   // Initialize them to the first two characters.
-  // Safe to assume from test cases that there is no 1 char buffer.
   int first, second, index = 0, tok_index = 0;
   int linenum = 1;
   // Words, : ! % + , - . / : @ ^ _
   // special tokens: ; | && || ( ) < > 
+
+  
+  //if two newlines, make into 1 semicolon
   
   do
     {
+      //decide if should push next char into token- default to true
+      bool push_into_token = true;
       first = buffer[index++];
-      if (first != ' ' && first != '\t')
-	tok_buf[tok_index++] = first;
       second = buffer[index];
+      //printf("initial first: %c, second: %c \n", first,second);
+      
+      //if letter or digit followed by operator
+      if ((isalnum(first)|| isSymbol(first)) && isOperator(second)){
+	push_into_token = false;
+	//printf("dig-opt first: %c, second: %c\n",first,second);
+      }
+      
+      //if operator followed by letter/digit
+      else if (isOperator(first) && (isalnum(second) || isSymbol(second))){
+	push_into_token=false;
+	//printf("opt-dig first: %c, second: %c\n",first,second);
+      }
 
-      switch(second)
-	{
-	case ';':
-	  // end token and put it in da linked list
-	  // disregard memory, leaks aren't checked
-	  tok_buf[tok_index++] = '\0';
-	  ts->tail->t = tok_buf;
-	  ts->tail->next = checked_malloc(sizeof(struct token_node));
-	  ts->tail = ts->tail->next;
-	  ts->tail->next = NULL;
+      else if(isOperator(first) && isspace(second)){
+	push_into_token=false;
+	//printf("opt-space first: %c, second: %c\n",first,second);
+      }
+      
+      else if (isspace(first) && isOperator(second)){
+	push_into_token=false;
+	//printf("space-opt first: %c, second: %c\n",first,second);
+      }
 
-	  // add semicolon token and increment index so we don't
-	  // put semicolon in another token
-	  ts->tail->t = ";";
-	  ts->tail->next = checked_malloc(sizeof(struct token_node));
-	  ts->tail = ts->tail->next;
-	  ts->tail->next = NULL;
-	  index++;
-	  
-	  // allocate a new block for a new token and reset token index
-	  tok_index = 0;
-	  tok_buf = checked_malloc(sizeof(char) * token_bufsize);
-	  break;
-	case '|':
-	  break;
-	case '&':
-      	  break;
-	case '(':
-	  break;
-	case ')':
-	  break;
-	case '<':
-	  break;
-	case '>':
-	  break;
-	case '#':
-	  break;
-	case '\n':
-	  linenum++;
-	  break;
-	default:
-	  break;
+      else if ((isalnum(first)|| isSymbol(first)) && second == '\n'){
+	push_into_token=false;
+	//printf("dig-new first: %c, second: %c\n",first,second);
+      }
+
+      else if (first =='\n' && second == '\n'){
+	push_into_token=false;
+	//printf("new-new \n");
+      }
+
+      //if first and second characters don't belong together then
+      //end current node and make a new one
+      if(!push_into_token){
+	//replace consecutive new lines with ;
+	if(first =='\n' && second == '\n'){
+	  tok_buf[tok_index++] = ';';
+	 
+	  //printf("done \n");
 	}
+	else{
+	  //push first char into token
+	  tok_buf[tok_index++] = first;
+	  //end token
+	  /*tok_buf[tok_index++] ='\0';
+	  ts->tail->t = tok_buf;
+	  //set up new token node
+	  ts->tail->next = checked_malloc(sizeof(struct token_node));
+	  ts->tail = ts->tail->next;
+	  ts->tail->next = NULL;
+	  //}
+	//allocate new block for new token and reset token index
+	// add second char to  token and increment index so we don't
+	  tok_index=0;
+	  tok_buf = checked_malloc(sizeof(char) * token_bufsize);*/
+	}
+	//end token
+	tok_buf[tok_index++] ='\0';
+	ts->tail->t = tok_buf;
+	//set up new token node
+	ts->tail->next = checked_malloc(sizeof(struct token_node));
+	ts->tail = ts->tail->next;
+	ts->tail->next = NULL;
+	//allocate new block for new token and reset token index
+	// add second char to  token and increment index so we don't
+	tok_index=0;
+	tok_buf = checked_malloc(sizeof(char) * token_bufsize);
+      }
+      else{
+	tok_buf[tok_index++]=first;
+      }
     }
   while (first != '\0' && second != '\0');
   print_tokens(ts);
