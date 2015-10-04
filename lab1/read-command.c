@@ -109,9 +109,6 @@ tokenize_buffer(char *buffer)
   int linenum = 1;
   // Words, : ! % + , - . / : @ ^ _
   // special tokens: ; | && || ( ) < > 
-
-  
-  //if two newlines, make into 1 semicolon
   
   do
     {
@@ -119,7 +116,7 @@ tokenize_buffer(char *buffer)
       bool push_into_token = true;
       first = buffer[index++];
       second = buffer[index];
-      //printf("initial first: %c, second: %c \n", first,second);
+      printf("initial first: %c, second: %c \n", first,second);
       
       //if letter or digit followed by operator
       if ((isalnum(first)|| isSymbol(first)) && isOperator(second)){
@@ -143,9 +140,10 @@ tokenize_buffer(char *buffer)
 	//printf("space-opt first: %c, second: %c\n",first,second);
       }
 
-      else if ((isalnum(first)|| isSymbol(first)) && second == '\n'){
+      else if ((isalnum(first)|| isSymbol(first)|| isspace(first))
+	       && second == '\n'){
 	push_into_token=false;
-	//printf("dig-new first: %c, second: %c\n",first,second);
+	printf("dig-new first: %c, second: %c\n",first,second);
       }
 
       else if (first =='\n' && second == '\n'){
@@ -165,18 +163,6 @@ tokenize_buffer(char *buffer)
 	else{
 	  //push first char into token
 	  tok_buf[tok_index++] = first;
-	  //end token
-	  /*tok_buf[tok_index++] ='\0';
-	  ts->tail->t = tok_buf;
-	  //set up new token node
-	  ts->tail->next = checked_malloc(sizeof(struct token_node));
-	  ts->tail = ts->tail->next;
-	  ts->tail->next = NULL;
-	  //}
-	//allocate new block for new token and reset token index
-	// add second char to  token and increment index so we don't
-	  tok_index=0;
-	  tok_buf = checked_malloc(sizeof(char) * token_bufsize);*/
 	}
 	//end token
 	tok_buf[tok_index++] ='\0';
@@ -191,7 +177,9 @@ tokenize_buffer(char *buffer)
 	tok_buf = checked_malloc(sizeof(char) * token_bufsize);
       }
       else{
-	tok_buf[tok_index++]=first;
+	if(!(first == '\n')){
+	  tok_buf[tok_index++]=first;
+	}
       }
     }
   while (first != '\0' && second != '\0');
