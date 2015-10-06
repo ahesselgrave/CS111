@@ -296,7 +296,8 @@ char* sortCommands(token_stream *t_stream){
     printf("%s= %d\n",tokenPointer->t,tokenPointer->tokenType);
     if (tokenPointer->tokenType != 0){
         //if ( push onto stack
-      if (tokenPointer->tokenType == 3 && tokenPointer->t=='('){
+        //strcmp returns 0 when they match
+      if (tokenPointer->tokenType == 3 && strcmp(tokenPointer->t, "(") == 0){
 	//printf("push (\n");
 	push(operatorStack,tokenPointer->t);
       }
@@ -306,7 +307,7 @@ char* sortCommands(token_stream *t_stream){
 	push(operatorStack,tokenPointer->t);
       }
       //if ), pop all operators off stack until pop (
-      else if(tokenPointer->tokenType == 3 && tokenPointer->t==')'){
+      else if(tokenPointer->tokenType == 3 && strcmp(tokenPointer->t, ")") == 0){
 	//printf(") so pop\n");
 	pop(operatorStack);
       }
