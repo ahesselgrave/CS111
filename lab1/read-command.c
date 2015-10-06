@@ -56,8 +56,10 @@ typedef struct stack STACK;
 
 void push(STACK *s,char input);
 char pop(STACK *s);
+char top(STACK *s);
 
 void push(STACK *s,char input){
+  printf("pushing\n");
   char val;
   if (s->top == 99){
     //stack is full
@@ -79,66 +81,10 @@ char pop(STACK *s){
   }
 }
 
-/*typedef struct{
-  char *stk;
-  int top;
-  int maxSize;
-}stack;
-
-void stackInit(stack *s, int maxSize);
-void destroyStack(stack *s);
-void push(stack *s,char val);
-char pop (stack *s);
-bool isStackEmpty(stack *s);
-bool isStackFull(stack *s);
-
-void stackInit(stack *s, int maxSize){
-  printf("making stack");
-  char *content;
-  content = (char *) malloc(sizeof(char) * maxSize);
-  if (content == NULL){
-    //not enough space;
-    printf("herp\n");
-    exit(1);
-  }
-  s->stk = content;
-  s->maxSize = maxSize;
-  s->top = -1;
+char top(STACK *s){
+  return s->stk[s->top];
 }
 
-void destroyStack(stack *s){
-  free(s->stk);
-  s->stk = NULL;
-  s->maxSize = 0;
-  s->top = -1;
-}
-
-bool isStackEmpty(stack *s){
-  if (s->top == -1){
-    return true;
-  }
-  return false;
-}
-
-bool isStackFull(stack *s){
-  if(s->top == s->maxSize-1){
-    return true;
-  }
-  return false;
-}
-
-void push(stack *s, char val){
-  if (!isStackFull(s)){
-    s->stk[++s->top] = val;
-  }
-}
-
-char pop(stack *s){
-  if(!isStackEmpty(s)){
-    return s->stk[s->top--];
-  }
-  }*/
-  
 char *
 read_from_input(int (*get_char) (void *),
 		void *get_char_arg)
@@ -289,7 +235,7 @@ tokenize_buffer(char *buffer)
       }
     }
   while (first != '\0' && second != '\0');
-  //  print_tokens(ts);
+  print_tokens(ts);
   return ts;
 }
 
@@ -322,43 +268,79 @@ void setTokenType(int first, int second, token_stream *ts){
   }
 }
 
+int getPrecedence (token opt){
+  printf("token: %s\n", opt);
+  if (opt == ";" || opt == "\n"){
+    return 0;
+  }
+  else if (opt == "&&" || opt == "||"){
+    return 1;
+  }
+  else{ //pipe
+    return 2;
+  }
+}
+  
+
 //function that will sort token stream into commands; these commands will
 //be inputted as nodes into command_stream 
 char* sortCommands(token_stream *t_stream){
-  struct stack *operatorStack;
-  struct stack *commandStack;
+  int lineNum = 1;
+  struct stack *operatorStack = checked_malloc(sizeof(struct stack));
+  struct stack *commandStack = checked_malloc(sizeof(struct stack));
   struct token_node *tokenPointer = t_stream->head;
-  
+  operatorStack->top=-1;
+  commandStack->top=-1;
   //loop through token linked list to create commands
   while (tokenPointer->next != NULL){
     printf("%s= %d\n",tokenPointer->t,tokenPointer->tokenType);
     if (tokenPointer->tokenType != 0){
-      //if ( push onto stack
+        //if ( push onto stack
       if (tokenPointer->tokenType == 3 && tokenPointer->t=='('){
+	//printf("push (\n");
 	push(operatorStack,tokenPointer->t);
       }
       //operator stack empty
       else if(operatorStack->top == -1){
+	//printf("opt stack empty\n");
 	push(operatorStack,tokenPointer->t);
       }
       //if ), pop all operators off stack until pop (
       else if(tokenPointer->tokenType == 3 && tokenPointer->t==')'){
+	//printf(") so pop\n");
 	pop(operatorStack);
       }
+      //if newline, increment lineNum
+      /*else if (tokenPointer ->tokenType == 4){
+	printf("new line!\n");
+	lineNum++;
+	}*/
+      
       //operator stack not empty- check for precedence
       //pop all operators greater or equal precedence off opreators stack
       else{
 	//check precedence
-	pop(operatorStack);
+	int precedenceCurrent = getPrecedence(tokenPointer->t);
+	//	printf("precedence:%d\n",precedenceCurrent);
+	//int precedenceTop = getPrecedence(top(operatorStack));
+	/*while(precedenceTop >= precedenceCurrent){
+	  pop(operatorStack);
+	  precedenceTop = getPrecedence(top(operatorStack));
+	  //make command trees here
+	  }*/
+	     
+	//	printf("p1= %d, p2=%d\n",precedenceCurrent, precedenceTop);
       }
+     
     }
     else{
       //not operator
+      //      printf("push word\n");
       push(commandStack,tokenPointer->t);
     }
     tokenPointer= tokenPointer->next;
-  }
-  //if anything left in operator or command stack, pop operator and combine with
+    }
+  //if anything left in operator or command stack, pop operator & combine with
   //2 words to get commands    
 }
 
@@ -366,9 +348,14 @@ command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
 		       void *get_next_byte_argument)
 {
+  token opt = " ;";
+  int x = getPrecedence(opt);
+  printf("VALUE: %d\n",x);
+  
   char *buffer = read_from_input(get_next_byte, get_next_byte_argument);
   token_stream *t_stream = tokenize_buffer(buffer);
   //need to create command_stream here and pass into sortCommands as pointer
+  printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
   char* endResult = sortCommands(t_stream);
   free(buffer);
   free(t_stream);
