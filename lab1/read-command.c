@@ -167,6 +167,7 @@ tokenize_buffer(char *buffer)
   // Initialize them to the first two characters.
   int first, second, index = 0, tok_index = 0;
   int linenum = 1;
+
   // Words, : ! % + , - . / : @ ^ _
   // special tokens: ; | && || ( ) < > 
   
@@ -176,6 +177,20 @@ tokenize_buffer(char *buffer)
       bool push_into_token = true;
       first = buffer[index++];
       second = buffer[index];
+      //      printf("initial first: %c, second: %c \n", first,second);
+
+      // only need to care about lines that start with '#'
+      // can always assume # will be first right after a '\n'
+      // always check for comments first
+      if (first == '#')
+	{
+	  // fast forward to end of line
+	  while (second != '\n')
+	    {
+	      first = buffer[index++];
+	      second = buffer[index];
+	    }
+	}
       
       //if letter or digit followed by operator
       if ((isalnum(first)|| isSymbol(first)) && isOperator(second)){
