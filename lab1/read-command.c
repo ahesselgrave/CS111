@@ -30,6 +30,7 @@ enum token_type{
   SEMICOLON, //5
   IN_OUT, //6
   NONE, //7
+  END_OF_FILE //8
 };
 
 typedef char *token;
@@ -39,7 +40,7 @@ typedef struct token_stream
   {
     enum token_type tokenType;
     token t;
-    struct token_node *next;
+    struct token_node *next, *prev;
   } *head, *tail;
 } token_stream;
 
@@ -101,7 +102,7 @@ read_from_input(int (*get_char) (void *),
   int index = 0;
   char *buffer = checked_malloc(sizeof(char) * bufsize);
 
-  int c;
+   int c;
   while ((c = get_char(get_char_arg)) != EOF)
     {
       // Put c into the buffer and make sure it wont extend past memory
@@ -124,7 +125,6 @@ print_tokens(token_stream *ts)
   while (tn->next != NULL)
     {
       printf("%s\n", tn->t);
-      //add \n
       tn = tn->next;
     }
 }
@@ -151,6 +151,7 @@ bool isSymbol(char symbol){
   return false;
 }
 
+  
 token_stream *
 tokenize_buffer(char *buffer)
 {
@@ -242,6 +243,7 @@ tokenize_buffer(char *buffer)
 	
 	//set up new token node
 	ts->tail->next = checked_malloc(sizeof(struct token_node));
+	ts->tail->next->prev = ts->tail;
 	ts->tail = ts->tail->next;
 	ts->tail->next = NULL;
 	ts->tail->tokenType = NONE;
@@ -258,7 +260,13 @@ tokenize_buffer(char *buffer)
       }
     }
   while (first != '\0' && second != '\0');
-  print_tokens(ts);
+  // add an EOF token now that we're done
+  ts->tail->next = checked_malloc(sizeof(struct token_node));
+  ts->tail->next->prev = ts->tail;
+  ts->tail = ts->tail->next;
+  ts->tail->next = NULL;
+  ts->tail->tokenType = END_OF_FILE;
+  ts->tail->t = "";
   return ts;
 }
 
@@ -514,12 +522,142 @@ char* sortCommands(token_stream *t_stream){
   //if anything left in operator or command stack, pop operator & combine with
   //2 words to get commands    
 
+void
+validate(token_stream *ts)
+{
+  // create two iterators for the linked list
+  struct token_node *first = ts->head;
+  struct token_node *second;
+  if (ts->head->next != NULL)
+    second = first->next;
+
+  // is_valid will always be true until flipped
+  bool is_valid = true;
+
+  // Increments on '(', decrements on ')'. Should be 0 at the end
+  int paren_count = 0;
+
+  // increments on newline, used for stderr output
+  int line_num = 1;
+  
+  while(second->next != NULL && is_valid)
+    {
+      /* enum token_type{ */
+      /* 	WORD,  //0 */
+      /* 	AND_OR, //1 */
+      /* 	PIPE, //2 */
+      /* 	PAREN, //3 */
+      /* 	NEWLINE, //4 */
+      /* 	SEMICOLON, //5 */
+      /* 	IN_OUT, //6 */
+      /* 	NONE, //7 */
+      /*}; */
+      enum token_type type = first->tokenType, second_type = second->tokenType;
+      
+
+      /* For binary operators AND_OR, PIPE, we want to fast-forward trailing newlines
+	 because they are allowed as many times as we like. For the sake of the 
+	 command stream generation, the trailing newlines will be squeezed to a single
+         newline that will indicate the end of a command tree.
+      */
+      switch(type)
+	{
+	case WORD:
+	  // word syntax is at the mercy of the command itself, not our jurisdiction
+	  break;
+	case AND_OR:
+	  // second can only be the following token types:
+	  // WORD, PAREN, NEWLINE
+	  if (second_type == WORD ||
+	      second_type == PAREN ||
+	      second_type == NEWLINE)
+	    {
+	      if (second_type == NEWLINE)
+		{
+		  // get a copy of where first is
+		  struct token_node *tn = first;
+
+		  // fast forward to the next non-newline token in second
+		  // don't forget to count line numbers too
+		  while (second->tokenType == NEWLINE)
+		    {
+		      first = second;
+		      second = second->next;
+		      line_num++;
+		    }
+		  // remove the newlines from tn to second
+		  struct token_node *iter = tn->next, *tmp;
+		  while (iter != second)
+		    {
+		      iter->prev->next = iter->next;
+		      iter->next->prev = iter->prev;
+		      tmp = iter;
+		      iter = iter->next;
+		      free(tmp);
+		    }
+
+		  // move first and second back to normal
+		  // continue to skip the linked list iteration again
+		  first = tn;
+		  second = first->next;
+		  continue;
+		}
+	    }
+	  else
+    	      is_valid = false;
+	  break;
+	case PIPE:
+	  // second cannot be the following token types:
+	  // WORD, PAREN, NEWLINE
+	  break;
+	case PAREN:
+	  // check if right comes before with negative number check
+	  // allowed to be undefined
+	  if (strcmp(first->t, "((") == 0)
+	    exit(-1);
+	  else if (strcmp(first->t, "("))
+	    paren_count++;
+	  else
+	    paren_count--;
+	  break;
+	case NEWLINE:
+	  line_num++;
+	  break;
+	case SEMICOLON:
+	  // second can only be the following token types:
+	  // WORD, PAREN, NEWLINE
+	  break;
+	case IN_OUT:
+	  // second can only be the following token types
+	  // WORD
+	  break;
+	case NONE:
+	default:
+	  break;
+	}
+
+      
+      // set up next iteration
+      first = second;
+      second = second->next;
+    }
+
+  if (paren_count != 0 || !is_valid)
+    {
+      fprintf(stderr, "%d: syntax error", line_num);
+      exit(1);
+    }
+    
+}
+
 command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
 		       void *get_next_byte_argument)
 {  
   char *buffer = read_from_input(get_next_byte, get_next_byte_argument);
   token_stream *t_stream = tokenize_buffer(buffer);
+  // validate the buffer: print to stderr if incorrect and exit(1)
+  validate(t_stream);
   //need to create command_stream here and pass into sortCommands as pointer
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
   char* endResult = sortCommands(t_stream);
