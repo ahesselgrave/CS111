@@ -318,9 +318,21 @@ char* sortCommands(token_stream *t_stream){
 	//printf("size of stack: %d\n",sizeOfStack(operatorStack));
 	//printf("value: %d\n",(top(operatorStack))->type);
       }
+      //if I/O direction, push onto command stack
+      else if (tokenPointer->tokenType == 6){
+	printf("input/output\n");
+	currentCmd = checked_malloc(sizeof(struct stack));
+	currentCmd->type = SIMPLE_COMMAND;
+	currentCmd->u.word = tokenPointer->t;
+	push(commandStack,currentCmd);
+	/*printf("size of stack: %d\n",sizeOfStack(commandStack));*/
+	  printf("value: %d\n",(top(commandStack))->type);                                                                                                                                                      
+	  printf("word: %s\n",currentCmd->u.word);
+      }
       //if operator stack empty, push onto stack
       else if(operatorStack->top == -1){
 	printf("stack empty\n");
+	//	printf("value: %d\n",tokenPointer->tokenType);
 	currentCmd = checked_malloc(sizeof(struct stack));
 	//find type for operator
 	int operatorType = tokenPointer->tokenType;
@@ -345,10 +357,12 @@ char* sortCommands(token_stream *t_stream){
 	}
 	push(operatorStack,currentCmd);
       }
+      
       //if ), pop all operators off stack until pop (
       else if(strcmp(tokenPointer->t, ")") == 0){
 	//keep popping as until reach )
-	while((top(operatorStack))->type == 5){
+	printf("close parens\n");
+	while(!((top(operatorStack))->type == 5)){
 	  command_t opt= pop(operatorStack);
 	  command_t rightCmd = pop(commandStack);
 	  command_t leftCmd = pop(commandStack);
@@ -361,6 +375,7 @@ char* sortCommands(token_stream *t_stream){
 
 	  //push back onto command stack
 	  push(commandStack,currentCmd);
+	  printf("pushed in close paren\n");
 	}
 	//pop matching ( and create subshell command, push back onto stack
 	command_t firstBracket = pop(operatorStack);
@@ -368,15 +383,8 @@ char* sortCommands(token_stream *t_stream){
 	command_t subShell= pop(commandStack);
 	currentCmd->u.subshell_command=subShell;
 	push(commandStack,currentCmd);
-      }
-      
-      /*if newline, increment lineNum
-      else if (tokenPointer ->tokenType == 4){
-      printf("new line!\n");
-      lineNum++;
-      check if previous is word, then make command
-      }*/
-      
+	printf("removed paren\n");
+      }     
       
       //operator stack not empty- pop all operators greater or equal precedence off operatorStack
       else{
@@ -399,10 +407,12 @@ char* sortCommands(token_stream *t_stream){
 	default:
 	  break;
 	}
-	printf("top: %d\n",precedenceTop);
+	//	printf("top: %d\n",precedenceTop);
 	currentCmd = checked_malloc(sizeof(struct stack));
 	while (precedenceCurrent <= precedenceTop){
-	  printf("should create new tree\n");
+	  //printf("should create new tree\n");
+
+	  //create command tree and push onto stack
 	  command_t opt = pop(operatorStack);
 	  command_t rightChild = pop(commandStack);
 	  command_t leftChild = pop(commandStack);
@@ -410,20 +420,27 @@ char* sortCommands(token_stream *t_stream){
 	  currentCmd->u.command[0]=leftChild;
 	  currentCmd->u.command[1]=rightChild;
 	  push(commandStack,currentCmd);
-	  printf("current operator value: %d\n",currentCmd->type);
-	  switch ((top(operatorStack))->type){
-	  case AND_COMMAND:
-	  case OR_COMMAND:
-	    precedenceTop = 1;
+
+	  //get value of next operator on stack
+	  //printf("current operator value: %d\n",currentCmd->type);
+	  if (sizeOfStack(operatorStack) == 0){
 	    break;
-	  case SEQUENCE_COMMAND:
-	    precedenceTop = 0;
-	    break;
-	  case PIPE_COMMAND:
-	    precedenceTop = 2;
-	    break;
-	  default:
-	    break;
+	  }
+	  else{
+	    switch ((top(operatorStack))->type){
+	    case AND_COMMAND:
+	    case OR_COMMAND:
+	      precedenceTop = 1;
+	      break;
+	    case SEQUENCE_COMMAND:
+	      precedenceTop = 0;
+	      break;
+	    case PIPE_COMMAND:
+	      precedenceTop = 2;
+	      break;
+	    default:
+	      break;
+	    }
 	  }
 	}
 	//push operator onto operatorStack
@@ -453,10 +470,20 @@ char* sortCommands(token_stream *t_stream){
     //if not operator
     else{
       printf("word\n");
-      currentCmd = checked_malloc(sizeof(struct stack));
-      currentCmd->type= SIMPLE_COMMAND;
-      currentCmd->u.word = tokenPointer->t;
-      push(commandStack,currentCmd);
+      //need to check if I/O direction beforehand
+      if (sizeOfStack(commandStack) != 0){
+	printf("check if need to fix I/O\n");
+	printf("meow: %s\n",(top(commandStack))->u.word);
+	if ( (strcmp((top(commandStack))->u.word,"<") == 0) || (strcmp((top(commandStack))->u.word ,">") ==0)){
+	  printf("redirection, need to create simple command!\n");
+	}
+      }
+      else{
+	currentCmd = checked_malloc(sizeof(struct stack));
+	currentCmd->type= SIMPLE_COMMAND;
+	currentCmd->u.word = tokenPointer->t;
+	push(commandStack,currentCmd);
+      }
       /*printf("size of stack: %d\n",sizeOfStack(commandStack));
       printf("value: %d\n",(top(commandStack))->type);
       printf("word: %s\n",currentCmd->u.word);*/
@@ -491,5 +518,7 @@ read_command_stream (command_stream_t s)
 {
   /* FIXME: Replace this with your implementation too.  */
   // error (1, 0, "command reading not yet implemented");
+  //if end of stream, return nothing
+  //else return s->command
   return 0;
 }
