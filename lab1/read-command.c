@@ -1,5 +1,13 @@
 // UCLA CS 111 Lab 1 command reading
 
+//////////////////////////////////////////////////////////
+//
+// NOTE: In command_stream generation, we need to delimit
+// words with spaces after validating them.
+// Also check for backticks
+//
+/////////////////////////////////////////////////////////
+
 #include "command.h"
 #include "command-internals.h"
 
@@ -30,7 +38,8 @@ enum token_type{
   SEMICOLON, //5
   IN_OUT, //6
   NONE, //7
-  END_OF_FILE //8
+  END_OF_FILE, //8
+  BACKTICK  //9
 };
 
 typedef char *token;
@@ -60,7 +69,7 @@ char pop(STACK *s);
 char top(STACK *s);
 
 void push(STACK *s,char input){
-  printf("pushing\n");
+  //printf("pushing\n");
   char val;
   if (s->top == 99){
     //stack is full
@@ -94,7 +103,7 @@ read_from_input(int (*get_char) (void *),
   int index = 0;
   char *buffer = checked_malloc(sizeof(char) * bufsize);
 
-   int c;
+  int c;
   while ((c = get_char(get_char_arg)) != EOF)
     {
       // Put c into the buffer and make sure it wont extend past memory
@@ -121,10 +130,10 @@ print_tokens(token_stream *ts)
     }
 }
 
-char operators[7] = {';', '|', '&', '(', ')','<','>'};
+char operators[8] = {';', '|', '&', '(', ')','<','>', '`'};
 bool isOperator(char op){
   int i;
-  for (i=0; i<7;i++){
+  for (i=0; i<8;i++){
     if (op == operators[i]){
       return true;
     }
@@ -287,12 +296,15 @@ void setTokenType(int first, int second, token_stream *ts){
     if (first == '<' || first == '>'){
       ts->tail->tokenType =6;
     }
+    if (first == '`'){
+      ts->tail->tokenType = BACKTICK;
     //    printf("\t TOKEN TYPE = %d \n",ts->tail->tokenType);
+    }
   }
 }
 
 int getPrecedence (token opt){
-  printf("token: %s\n", opt);
+  //printf("token: %s\n", opt);
   if (opt == ";" || opt == "\n"){
     return 0;
   }
@@ -316,10 +328,10 @@ char* sortCommands(token_stream *t_stream){
   commandStack->top=-1;
   //loop through token linked list to create commands
   while (tokenPointer->next != NULL){
-    printf("%s= %d\n",tokenPointer->t,tokenPointer->tokenType);
+    //printf("%s= %d\n",tokenPointer->t,tokenPointer->tokenType);
     if (tokenPointer->tokenType != 0){
-        //if ( push onto stack
-        //strcmp returns 0 when they match
+      //if ( push onto stack
+      //strcmp returns 0 when they match
       if (tokenPointer->tokenType == 3 && strcmp(tokenPointer->t, "(") == 0){
 	//printf("push (\n");
 	push(operatorStack,tokenPointer->t);
@@ -352,10 +364,10 @@ char* sortCommands(token_stream *t_stream){
 	  precedenceTop = getPrecedence(top(operatorStack));
 	  //make command trees here
 	  }*/
-	     
+	
 	//	printf("p1= %d, p2=%d\n",precedenceCurrent, precedenceTop);
       }
-     
+      
     }
     else{
       //not operator
@@ -363,10 +375,42 @@ char* sortCommands(token_stream *t_stream){
       push(commandStack,tokenPointer->t);
     }
     tokenPointer= tokenPointer->next;
-    }
+  }
   //if anything left in operator or command stack, pop operator & combine with
   //2 words to get commands    
 }
+
+void
+truncate_newlines(token_stream *ts, struct token_node *first, int *line_num)
+{
+  // get a copy of where first is
+  struct token_node *tn = first, *second = first->next;
+  
+  // fast forward to the next non-newline token in second
+  // don't forget to count line numbers too
+  while (second->tokenType == NEWLINE)
+    {
+      first = second;
+      second = second->next;
+      (*line_num)++;
+    }
+  // remove the newlines from tn to second
+  struct token_node *iter = tn->next, *tmp;
+  while (iter != second)
+    {
+      iter->prev->next = iter->next;
+      iter->next->prev = iter->prev;
+      tmp = iter;
+      iter = iter->next;
+      free(tmp);
+    }
+
+  // move first and second back to normal
+  // continue to skip the linked list iteration again
+  first = tn;
+  second = first->next;
+}
+
 
 void
 validate(token_stream *ts)
@@ -382,24 +426,17 @@ validate(token_stream *ts)
 
   // Increments on '(', decrements on ')'. Should be 0 at the end
   int paren_count = 0;
-
+  int backtick_flag = 0;
   // increments on newline, used for stderr output
   int line_num = 1;
+
+  // assert that first is a word initially
+  if (first->tokenType != WORD)
+    is_valid = false;
   
   while(second->next != NULL && is_valid)
     {
-      /* enum token_type{ */
-      /* 	WORD,  //0 */
-      /* 	AND_OR, //1 */
-      /* 	PIPE, //2 */
-      /* 	PAREN, //3 */
-      /* 	NEWLINE, //4 */
-      /* 	SEMICOLON, //5 */
-      /* 	IN_OUT, //6 */
-      /* 	NONE, //7 */
-      /*}; */
       enum token_type type = first->tokenType, second_type = second->tokenType;
-      
 
       /* For binary operators AND_OR, PIPE, we want to fast-forward trailing newlines
 	 because they are allowed as many times as we like. For the sake of the 
@@ -412,6 +449,18 @@ validate(token_stream *ts)
 	  // word syntax is at the mercy of the command itself, not our jurisdiction
 	  break;
 	case AND_OR:
+	case PIPE:
+	  // check token length
+	  if (type == PIPE && strlen(first->t) != 1)
+	    {
+	      is_valid = false;
+	      break;
+	    }
+	  else if (strlen(first->t) != 2)
+	    {
+	      is_valid = false;
+	      break;
+	    }
 	  // second can only be the following token types:
 	  // WORD, PAREN, NEWLINE
 	  if (second_type == WORD ||
@@ -420,7 +469,8 @@ validate(token_stream *ts)
 	    {
 	      if (second_type == NEWLINE)
 		{
-		  // get a copy of where first is
+		  // truncate_newlines(ts, first);
+       		  // get a copy of where first is
 		  struct token_node *tn = first;
 
 		  // fast forward to the next non-newline token in second
@@ -452,10 +502,10 @@ validate(token_stream *ts)
 	  else
     	      is_valid = false;
 	  break;
-	case PIPE:
-	  // second cannot be the following token types:
-	  // WORD, PAREN, NEWLINE
-	  break;
+	/* case PIPE: */
+	/*   // second cannot be the following token types: */
+	/*   // WORD, PAREN, NEWLINE */
+	/*   break; */
 	case PAREN:
 	  // check if right comes before with negative number check
 	  // allowed to be undefined
@@ -468,27 +518,50 @@ validate(token_stream *ts)
 	  break;
 	case NEWLINE:
 	  line_num++;
+	  // second_type cant be AND_OR, PIPE, IN_OUT, or SEMICOLON
+	  if (second_type == AND_OR || second_type == PIPE ||
+	      second_type == IN_OUT || second_type == SEMICOLON)
+	    is_valid = false;
 	  break;
 	case SEMICOLON:
 	  // second can only be the following token types:
 	  // WORD, PAREN, NEWLINE
+	  if (second_type != WORD && second_type != PAREN && second_type != NEWLINE)
+	    is_valid = false;
+	  
+	  // tokenizing doesnt pick up duplicates like ;;. have to assert size of token
+	  // only allow ";"
+	  if (strlen(first->t) != 1)
+	    is_valid = false;
+
 	  break;
 	case IN_OUT:
 	  // second can only be the following token types
 	  // WORD
+	  if (second_type != WORD)
+	    is_valid = false;
+	  
+	  // assert only "<" or ">" tokens by size
+	  if (strlen(first->t) != 1)
+	    is_valid = false;
 	  break;
+	case BACKTICK:
+	  // only care about having an even number of backticks
+	  backtick_flag = !backtick_flag;
 	case NONE:
 	default:
 	  break;
 	}
 
-      
+      // this will be negative if right parens came first.
+      if (paren_count < 0)
+	is_valid = false;
       // set up next iteration
       first = second;
       second = second->next;
     }
 
-  if (paren_count != 0 || !is_valid)
+  if (paren_count != 0 || !is_valid || backtick_flag != 0)
     {
       fprintf(stderr, "%d: syntax error", line_num);
       exit(1);
@@ -502,14 +575,14 @@ make_command_stream (int (*get_next_byte) (void *),
 {
   token opt = " ;";
   int x = getPrecedence(opt);
-  printf("VALUE: %d\n",x);
+  //  printf("VALUE: %d\n",x);
   
   char *buffer = read_from_input(get_next_byte, get_next_byte_argument);
   token_stream *t_stream = tokenize_buffer(buffer);
   // validate the buffer: print to stderr if incorrect and exit(1)
   validate(t_stream);
   //need to create command_stream here and pass into sortCommands as pointer
-  printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+  //printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
   char* endResult = sortCommands(t_stream);
   free(buffer);
   free(t_stream);
