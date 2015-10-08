@@ -340,7 +340,11 @@ command_stream* sortCommands(token_stream *t_stream){
   commandStack->top=-1;
 
   //create current and previous command
-  command_t currentCmd;
+  command_t currentCmd = checked_malloc(sizeof(struct command));
+  // null input and output, modify as needed
+  currentCmd->input = NULL;
+  currentCmd->output = NULL;
+  
    
   //loop through token linked list to create commands
   while (tokenPointer->tokenType != END_OF_FILE){
@@ -353,7 +357,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	command_t operatorLeft= pop(operatorStack);
 	command_t rightChild = pop(commandStack);
 	command_t leftChild = pop(commandStack);
-	currentCmd =checked_malloc(sizeof(struct command));
 	currentCmd->type = operatorLeft->type;
 	currentCmd->u.command[0]=leftChild;
 	currentCmd->u.command[1]=rightChild;
@@ -362,7 +365,8 @@ command_stream* sortCommands(token_stream *t_stream){
       //add new node to command tree linked list and
       // create new node for next tree
       command_t newCommandTree = pop(commandStack);
-      commandStream->tail->command = newCommandTree;
+      commandStream->tail->command = checked_malloc(sizeof(struct command));
+      memcpy(commandStream->tail->command, newCommandTree, sizeof(struct command));
       commandStream->tail->next=checked_malloc(sizeof(struct command_node));
       commandStream->tail = commandStream->tail->next;
       commandStream->tail->next = NULL;
@@ -380,13 +384,11 @@ command_stream* sortCommands(token_stream *t_stream){
     else if (tokenPointer->tokenType != WORD){
       //if ( push onto stack
       if (strcmp(tokenPointer->t, "(") == 0){
-	currentCmd = checked_malloc(sizeof(struct command));
 	currentCmd->type = SUBSHELL_COMMAND;
 	push(operatorStack,currentCmd);
       }
       //if I/O direction, push onto command stack
       else if (tokenPointer->tokenType == IN_OUT){
-	currentCmd = checked_malloc(sizeof(struct command));
 	currentCmd->type = SIMPLE_COMMAND;
         currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	currentCmd->u.word[0] =(char *) checked_malloc(sizeof(char *));
@@ -399,7 +401,6 @@ command_stream* sortCommands(token_stream *t_stream){
       //if operator stack empty, push onto stack
       else if(operatorStack->top == -1){
 	// printf("stack empty\n");
-	currentCmd = checked_malloc(sizeof(struct command));
 	//find type for operator
 	int operatorType = tokenPointer->tokenType;
 	switch (operatorType){
@@ -431,7 +432,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	  command_t opt= pop(operatorStack);
 	  command_t rightCmd = pop(commandStack);
 	  command_t leftCmd = pop(commandStack);
-	  currentCmd = checked_malloc(sizeof(struct command));
 	  
 	  //create command by combining 2 commands with 1 operator
 	  currentCmd->type = opt->type;
@@ -469,7 +469,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	default:
 	  break;
 	}
-	currentCmd = checked_malloc(sizeof(struct command));
 	while (precedenceCurrent <= precedenceTop){
 	  //create command tree and push onto stack
 	  command_t opt = pop(operatorStack);
@@ -535,7 +534,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	  //pop top two commands and make simple command with input/output redirect
 	  command_t redirect = pop(commandStack);
 	  command_t wordForCommand = pop(commandStack);
-	  currentCmd = checked_malloc(sizeof(struct command));
 	  currentCmd->type = SIMPLE_COMMAND;
 	  if (strcmp(redirect->u.word,"<") == 0){
 	    // printf("input\n");
@@ -556,7 +554,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	  push(commandStack,currentCmd);
 	}
 	else{
-	  currentCmd = checked_malloc(sizeof(struct command));
 	  currentCmd->type=SIMPLE_COMMAND;
 	  int word_index = 0;
 	  currentCmd->u.word = (char **)checked_malloc(sizeof(char **));
@@ -571,7 +568,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	}
       }
       else{
-	currentCmd = checked_malloc(sizeof(struct command));
 	currentCmd->type= SIMPLE_COMMAND;
 	//use strtok to separate by whitespace for easier validation in future
 	int word_index = 0;
@@ -711,6 +707,40 @@ validate(token_stream *ts)
 	  if (second_type == AND_OR || second_type == PIPE ||
 	      second_type == IN_OUT || second_type == SEMICOLON)
 	    is_valid = false;
+	  else
+	    {
+	      // truncate_newlines(ts, first);
+	      // get a copy of where first is
+	      struct token_node *tn = first;
+
+	      // fast forward to the next non-newline token in second
+	      // don't forget to count line numbers too
+	      while (second->tokenType == NEWLINE)
+		{
+		  first = second;
+		  second = second->next;
+		  line_num++;
+		}
+	      // remove the newlines from tn to second
+	      struct token_node *iter = tn->next, *tmp;
+	      while (iter != second)
+		{
+		  iter->prev->next = iter->next;
+		  iter->next->prev = iter->prev;
+		  tmp = iter;
+		  iter = iter->next;
+		  free(tmp);
+		}
+	      
+	      if (second->tokenType == END_OF_FILE)
+		{
+		  //EXPLICIT
+		  continue;
+		}
+	      // first = tn;
+	      //second = first->next;
+	      
+	    }
 	  break;
 	case SEMICOLON:
 	  // second can only be the following token types:

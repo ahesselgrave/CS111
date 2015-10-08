@@ -1,7 +1,5 @@
-a; ab;cde ee;cat < /etc/passwd
+true
 
-#this should be ignored
-a | (b &&  c )
-
+g++ -c foo.c
        
        
