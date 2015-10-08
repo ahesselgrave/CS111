@@ -1,5 +1,10 @@
-This is a skeleton for CS 111 Lab 1.
+Kristen Chui: 104289172
+Alex Hesselgrave: 
 
-Replace this README file with notes on your implementation.
-Mentions any special features or limitations.
-ALEX WAS HERE
+CS 111 Lab 1:
+
+1a:
+For reading in the command, we created a token stream which tokenized based on different types.
+Then we validated the token stream before converting the tokens into the corresponding command trees;
+
+
