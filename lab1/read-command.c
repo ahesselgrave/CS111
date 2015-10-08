@@ -82,8 +82,8 @@ void push(STACK *s,command_t input){
     fprintf(stderr,"Stack is full!");
   }
   else{
-    s->top=s->top + 1;
-    s->stk[s->top]=input;
+    //s->top=s->top + 1;
+    s->stk[++s->top]=input;
   }
 }
 
@@ -354,6 +354,7 @@ command_stream* sortCommands(token_stream *t_stream){
       //current command stack is the command node, add to command stream
       //pop off all remaining items from operator stack
       while (sizeOfStack(operatorStack) != 0){
+	currentCmd = checked_malloc(sizeof(struct command));//
 	command_t operatorLeft= pop(operatorStack);
 	command_t rightChild = pop(commandStack);
 	command_t leftChild = pop(commandStack);
@@ -371,24 +372,19 @@ command_stream* sortCommands(token_stream *t_stream){
       commandStream->tail = commandStream->tail->next;
       commandStream->tail->next = NULL;
       commandStream->numNodes = commandStream->numNodes +1;
-     
-      //printf("size of command stack: %d\n",sizeOfStack(commandStack));
-      //printf("num of command node: %d\n", commandStream->numNodes);
-      //print_command(newCommandTree);
-      //printf("###################################################\n");
-      //currentCmd = checked_malloc(sizeof(struct command));
-      //printf("new currentCmd made\n");
     }
 
     //not a word
     else if (tokenPointer->tokenType != WORD){
       //if ( push onto stack
       if (strcmp(tokenPointer->t, "(") == 0){
+	currentCmd = checked_malloc(sizeof(struct command)); //
 	currentCmd->type = SUBSHELL_COMMAND;
 	push(operatorStack,currentCmd);
       }
       //if I/O direction, push onto command stack
       else if (tokenPointer->tokenType == IN_OUT){
+	currentCmd = checked_malloc(sizeof(struct command)); //
 	currentCmd->type = SIMPLE_COMMAND;
         currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	currentCmd->u.word[0] =(char *) checked_malloc(sizeof(char *));
@@ -400,8 +396,8 @@ command_stream* sortCommands(token_stream *t_stream){
       }
       //if operator stack empty, push onto stack
       else if(operatorStack->top == -1){
-	// printf("stack empty\n");
 	//find type for operator
+	currentCmd = checked_malloc(sizeof(struct command));//
 	int operatorType = tokenPointer->tokenType;
 	switch (operatorType){
 	case 1:
@@ -432,7 +428,8 @@ command_stream* sortCommands(token_stream *t_stream){
 	  command_t opt= pop(operatorStack);
 	  command_t rightCmd = pop(commandStack);
 	  command_t leftCmd = pop(commandStack);
-	  
+
+	  currentCmd = checked_malloc(sizeof(struct command));//
 	  //create command by combining 2 commands with 1 operator
 	  currentCmd->type = opt->type;
 	  currentCmd->u.command[0] = leftCmd;
@@ -442,6 +439,7 @@ command_stream* sortCommands(token_stream *t_stream){
 	  push(commandStack,currentCmd);
 	}
 	//pop matching ( and create subshell command, push back onto stack
+	currentCmd = checked_malloc(sizeof(struct command));//
 	command_t firstBracket = pop(operatorStack);
 	currentCmd->type= firstBracket->type;  //should be 5?
 	command_t subShell= pop(commandStack);
@@ -471,6 +469,7 @@ command_stream* sortCommands(token_stream *t_stream){
 	}
 	while (precedenceCurrent <= precedenceTop){
 	  //create command tree and push onto stack
+	  currentCmd = checked_malloc(sizeof(struct command));//
 	  command_t opt = pop(operatorStack);
 	  command_t rightChild = pop(commandStack);
 	  command_t leftChild = pop(commandStack);
@@ -502,6 +501,7 @@ command_stream* sortCommands(token_stream *t_stream){
 	}
 	//push operator onto operatorStack
 	int operatorType = tokenPointer->tokenType;
+	currentCmd = checked_malloc(sizeof(struct command));//
 	switch (operatorType){
 	case 1:
 	  if(strcmp(tokenPointer->t,"&&") == 0){
@@ -526,34 +526,28 @@ command_stream* sortCommands(token_stream *t_stream){
     }
     //if not operator
     else{
-      //printf("word\n");
       //need to check if I/O direction beforehand
       if (sizeOfStack(commandStack) >= 2){
-	//printf("check if need to fix I/O\n");
-	if ( (strcmp((top(commandStack))->u.word,"<") == 0) || (strcmp((top(commandStack))->u.word ,">") ==0)){
+	if ( (strcmp((top(commandStack))->u.word[0],"<") == 0) || (strcmp((top(commandStack))->u.word[0] ,">") ==0)){
 	  //pop top two commands and make simple command with input/output redirect
+	  currentCmd = checked_malloc(sizeof(struct command));//
 	  command_t redirect = pop(commandStack);
 	  command_t wordForCommand = pop(commandStack);
 	  currentCmd->type = SIMPLE_COMMAND;
-	  if (strcmp(redirect->u.word,"<") == 0){
-	    // printf("input\n");
+	  if (strcmp(redirect->u.word[0],"<") == 0){
 	    currentCmd->input = tokenPointer->t;
 	    currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	    currentCmd->u.word = wordForCommand->u.word;
-	    //currentCmd->u.word= &wordForCommand;
 	  }
-	  if (strcmp(redirect->u.word,">") == 0){
-	    //printf("output\n");
+	  if (strcmp(redirect->u.word[0],">") == 0){
 	    currentCmd->output = tokenPointer->t;
 	    currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	    currentCmd->u.word = wordForCommand->u.word;
-	    //currentCmd->u.word[0] = (char *) checked_malloc(sizeof(char *));
-	    ///MIGHT BE ERROR HERE WITH WORD STUFFZ
-	    //currentCmd->u.word[0]= &wordForCommand;
 	  }
 	  push(commandStack,currentCmd);
 	}
 	else{
+	  currentCmd = checked_malloc(sizeof(struct command));//
 	  currentCmd->type=SIMPLE_COMMAND;
 	  int word_index = 0;
 	  currentCmd->u.word = (char **)checked_malloc(sizeof(char **));
@@ -568,6 +562,7 @@ command_stream* sortCommands(token_stream *t_stream){
 	}
       }
       else{
+	currentCmd = checked_malloc(sizeof(struct command));//
 	currentCmd->type= SIMPLE_COMMAND;
 	//use strtok to separate by whitespace for easier validation in future
 	int word_index = 0;
@@ -585,7 +580,6 @@ command_stream* sortCommands(token_stream *t_stream){
       
     }
     //after add command/operator to stack, move pointer to next
-    //printf("operatorStack size: %d, commandStack size %d\n",sizeOfStack(operatorStack),sizeOfStack(commandStack));
     tokenPointer= tokenPointer->next;
   }//end of while loop bracket
   return commandStream;
