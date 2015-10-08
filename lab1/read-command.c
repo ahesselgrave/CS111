@@ -345,7 +345,7 @@ command_stream* sortCommands(token_stream *t_stream){
   currentCmd->input = NULL;
   currentCmd->output = NULL;
   
-   
+
   //loop through token linked list to create commands
   while (tokenPointer->tokenType != END_OF_FILE){
     
@@ -354,7 +354,11 @@ command_stream* sortCommands(token_stream *t_stream){
       //current command stack is the command node, add to command stream
       //pop off all remaining items from operator stack
       while (sizeOfStack(operatorStack) != 0){
-	currentCmd = checked_malloc(sizeof(struct command));//
+	currentCmd = checked_malloc(sizeof(struct command));
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+  
 	command_t operatorLeft= pop(operatorStack);
 	command_t rightChild = pop(commandStack);
 	command_t leftChild = pop(commandStack);
@@ -379,12 +383,21 @@ command_stream* sortCommands(token_stream *t_stream){
       //if ( push onto stack
       if (strcmp(tokenPointer->t, "(") == 0){
 	currentCmd = checked_malloc(sizeof(struct command)); //
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+ 
 	currentCmd->type = SUBSHELL_COMMAND;
 	push(operatorStack,currentCmd);
       }
       //if I/O direction, push onto command stack
       else if (tokenPointer->tokenType == IN_OUT){
 	currentCmd = checked_malloc(sizeof(struct command)); //
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+  
+
 	currentCmd->type = SIMPLE_COMMAND;
         currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	currentCmd->u.word[0] =(char *) checked_malloc(sizeof(char *));
@@ -398,6 +411,11 @@ command_stream* sortCommands(token_stream *t_stream){
       else if(operatorStack->top == -1){
 	//find type for operator
 	currentCmd = checked_malloc(sizeof(struct command));//
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+  
+
 	int operatorType = tokenPointer->tokenType;
 	switch (operatorType){
 	case 1:
@@ -430,6 +448,11 @@ command_stream* sortCommands(token_stream *t_stream){
 	  command_t leftCmd = pop(commandStack);
 
 	  currentCmd = checked_malloc(sizeof(struct command));//
+	  // null input and output, modify as needed
+	  currentCmd->input = NULL;
+	  currentCmd->output = NULL;
+  
+
 	  //create command by combining 2 commands with 1 operator
 	  currentCmd->type = opt->type;
 	  currentCmd->u.command[0] = leftCmd;
@@ -440,6 +463,11 @@ command_stream* sortCommands(token_stream *t_stream){
 	}
 	//pop matching ( and create subshell command, push back onto stack
 	currentCmd = checked_malloc(sizeof(struct command));//
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+  
+
 	command_t firstBracket = pop(operatorStack);
 	currentCmd->type= firstBracket->type;  //should be 5?
 	command_t subShell= pop(commandStack);
@@ -470,6 +498,11 @@ command_stream* sortCommands(token_stream *t_stream){
 	while (precedenceCurrent <= precedenceTop){
 	  //create command tree and push onto stack
 	  currentCmd = checked_malloc(sizeof(struct command));//
+	  // null input and output, modify as needed
+	  currentCmd->input = NULL;
+	  currentCmd->output = NULL;
+  
+
 	  command_t opt = pop(operatorStack);
 	  command_t rightChild = pop(commandStack);
 	  command_t leftChild = pop(commandStack);
@@ -502,6 +535,11 @@ command_stream* sortCommands(token_stream *t_stream){
 	//push operator onto operatorStack
 	int operatorType = tokenPointer->tokenType;
 	currentCmd = checked_malloc(sizeof(struct command));//
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+  
+
 	switch (operatorType){
 	case 1:
 	  if(strcmp(tokenPointer->t,"&&") == 0){
@@ -531,18 +569,28 @@ command_stream* sortCommands(token_stream *t_stream){
 	if ( (strcmp((top(commandStack))->u.word[0],"<") == 0) || (strcmp((top(commandStack))->u.word[0] ,">") ==0)){
 	  //pop top two commands and make simple command with input/output redirect
 	  currentCmd = checked_malloc(sizeof(struct command));//
+	  // null input and output, modify as needed
+	  currentCmd->input = NULL;
+	  currentCmd->output = NULL;
+  
+
 	  command_t redirect = pop(commandStack);
 	  command_t wordForCommand = pop(commandStack);
 	  currentCmd->type = SIMPLE_COMMAND;
+	  // remove trailing spaces at the end
+	  char *io = strtok(tokenPointer->t, " ");
 	  if (strcmp(redirect->u.word[0],"<") == 0){
-	    currentCmd->input = tokenPointer->t;
+	    currentCmd->input = io;
 	    currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	    currentCmd->u.word = wordForCommand->u.word;
 	  }
 	  if (strcmp(redirect->u.word[0],">") == 0){
-	    currentCmd->output = tokenPointer->t;
+	    currentCmd->output = io;
 	    currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	    currentCmd->u.word = wordForCommand->u.word;
+	    // check if wordForCommand has input
+	    if (wordForCommand->input)
+	      currentCmd->input = wordForCommand->input;
 	  }
 	  push(commandStack,currentCmd);
 	}
@@ -563,6 +611,11 @@ command_stream* sortCommands(token_stream *t_stream){
       }
       else{
 	currentCmd = checked_malloc(sizeof(struct command));//
+	// null input and output, modify as needed
+	currentCmd->input = NULL;
+	currentCmd->output = NULL;
+  
+
 	currentCmd->type= SIMPLE_COMMAND;
 	//use strtok to separate by whitespace for easier validation in future
 	int word_index = 0;
