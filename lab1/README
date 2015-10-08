@@ -6,5 +6,8 @@ CS 111 Lab 1:
 1a:
 For reading in the command, we created a token stream which tokenized based on different types.
 Then we validated the token stream before converting the tokens into the corresponding command trees;
-
+To create command trees, we used 2 stacks to sort through operators and words/simple commands. Depending
+on the precedence of the operator as well as certain corner cases, we either pushed the operator onto the stack
+or combined it with words to create a simple command. We stored the command trees into command_stream as a linked list,
+which was traversed in read_command_stream.
 
