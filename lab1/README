@@ -4,10 +4,18 @@ Alex Hesselgrave: 904273474
 CS 111 Lab 1:
 
 1a:
-For reading in the command, we created a token stream which tokenized based on different types.
-Then we validated the token stream before converting the tokens into the corresponding command trees;
+We used the built in function pointer for get_next_byte to read the whole script into a buffer that
+can reallocate if needed. For reading in the command, we created a token stream which tokenized based
+on the 8 special tokens in the spec as well as backticks. The token stream contained a linked list of tokens
+and the type of the token (e.g WORD token, AND_OR token) Then we validated the token stream before converting
+the tokens into the corresponding command trees by confirming that the next token type is valid to appear after
+the current token being processed. In the validate function, we also truncated extra spaces and newlines
+
 To create command trees, we used 2 stacks to sort through operators and words/simple commands. Depending
 on the precedence of the operator as well as certain corner cases, we either pushed the operator onto the stack
 or combined it with words to create a simple command. We stored the command trees into command_stream as a linked list,
 which was traversed in read_command_stream.
+
+To our knowledge, there are no limitations to our design. Malloced blocks are reallocated if they can possibly grow, and
+all special tokens and trailing whitespace are accounted for.
 
