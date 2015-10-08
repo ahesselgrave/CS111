@@ -636,10 +636,13 @@ validate(token_stream *ts)
 	case AND_OR:
 	case PIPE:
 	  // check token length
-	  if (type == PIPE && strlen(first->t) != 1)
+	  if (type == PIPE)
 	    {
-	      is_valid = false;
-	      break;
+	      if (strlen(first->t) != 1)
+		{
+		  is_valid = false;
+		  break;
+		}
 	    }
 	  else if (strlen(first->t) != 2)
 	    {
