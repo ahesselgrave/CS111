@@ -8,12 +8,14 @@
 //
 /////////////////////////////////////////////////////////
 
+#include "alloc.h"
 #include "command.h"
 #include "command-internals.h"
 
 #include <error.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define TT_BUFFER_SIZE 1024
@@ -90,11 +92,10 @@ void push(STACK *s,command_t input){
 command_t pop(STACK *s){
   if (s->top == -1){
     fprintf(stderr,"Stack is empty!");
-    return;
+    exit(-1);
   }
   else{
-    token val = s->stk[s->top--];
-    return val;
+    return s->stk[s->top--];
   }
 }
 
@@ -159,6 +160,8 @@ bool isSymbol(char symbol){
   return false;
 }
 
+void
+setTokenType(int first, int second, token_stream *ts);
   
 token_stream *
 tokenize_buffer(char *buffer)
@@ -231,7 +234,7 @@ tokenize_buffer(char *buffer)
       }
 
       else if ( (isspace(first) && isspace(second)) ||
-		isspace(first) && tok_index == 0) {
+		(isspace(first) && tok_index == 0)) {
 	push_into_token=false;
       }
 
