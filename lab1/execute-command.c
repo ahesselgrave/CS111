@@ -1,11 +1,17 @@
 // UCLA CS 111 Lab 1 command execution
 
+#include "alloc.h"
 #include "command.h"
 #include "command-internals.h"
+#include <string.h>
 #include <error.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h> 
+
+#define STDIN 0
+#define STDOUT 1
 
 int
 command_status (command_t c)
@@ -34,39 +40,96 @@ execute_command (command_t c, int time_travel)
     execute_simple(c);
     break;
     
-  case AND_COMMAND:
-    execute_and(c);
-    break;
+  /* case AND_COMMAND: */
+  /*   execute_and(c); */
+  /*   break; */
     
-  case OR_COMMAND:
-    execute_or(c);
-    break;
+  /* case OR_COMMAND: */
+  /*   execute_or(c); */
+  /*   break; */
     
-  case SEQUENCE_COMMAND:
-    execute_sequence(c);
-    break;
+  /* case SEQUENCE_COMMAND: */
+  /*   execute_sequence(c); */
+  /*   break; */
     
-  case PIPE_COMMAND:
-    execute_pipe(c);
-    break;
+  /* case PIPE_COMMAND: */
+  /*   execute_pipe(c); */
+  /*   break; */
 
-  case SUBSHELL_COMMAND:
-    execute_subshell(c);
-    break;
+  /* case SUBSHELL_COMMAND: */
+  /*   execute_subshell(c); */
+  /*   break; */
   default:
     //How did we get here?
     error (1, 0, "YOU BROKE IT GOOD JOB!");
   }
   // avoid compiler warning with -Werror on
   time_travel;
-  error (1, 0, "command execution not yet implemented");
 }
 
 void
 execute_simple(command_t c)
 {
-  // Fork shell and 
-  
+  // Fork shell and execvp
+  int status;
+  pid_t p = fork();
+
+  if (p == 0) //child
+    {
+      //check for input and output
+      if (c->input)
+	{
+	  // open the file in command input and clone the fd into stdin
+	  int in = open(c->input, O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	  dup2(in, STDIN);
+	  close(in);
+	  
+	}
+      if (c->output)
+	{
+	  int out = open(c->output, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	  dup2(out, STDOUT);
+	  close(out);
+	}
+      // guess two arguments, realloc if needed
+      int num_args = 2;
+      int index = 0;
+      char **argv = (char **) checked_malloc(sizeof(char *) * num_args);
+      char **w = c->u.word;
+      while(*w)
+	{
+	  size_t len = strlen(*w);
+	  argv[index] = (char *) checked_malloc(sizeof(char) * len);
+	  strcpy(argv[index++], *w);
+	  //realloc if needed
+	  if (index > num_args)
+	    {
+	      num_args *= 2;
+	      argv = (char **) checked_realloc(argv, sizeof(char*) * num_args);
+	    }
+	  w++;
+	}
+      //add null termination
+      if (index > num_args)
+	{
+	  num_args *=2;
+	  argv = (char **) checked_realloc(argv, sizeof(char) * num_args);
+	}
+      argv[index] = NULL;
+      
+      if (execvp(*argv, argv) < 0)
+	error(1, 0, "ERROR IN EXECVP");
+	  
+    }
+  else if (p > 0) //parent
+    {
+      //hang up shell until done
+      while( wait(&status) != p);
+    }
+  else //error
+    error (1, 0, "Error in fork!");
+}
+
 
 void
 execute_pipe(command_t c){
