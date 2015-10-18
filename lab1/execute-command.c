@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h> 
-
+#include <stdio.h>
 #include <stdlib.h>
 #define STDIN 0
 #define STDOUT 1
@@ -17,7 +17,7 @@
 int
 command_status (command_t c)
 {
-  return c->status;
+  return c->status % 255;
 }
 
 // Set up function prototypes
@@ -40,9 +40,9 @@ execute_command (command_t c, int time_travel)
   case SIMPLE_COMMAND:
     execute_simple(c);
     break;
-    /* case AND_COMMAND: */
-    /*   execute_and(c); */
-    /*   break; */
+  case AND_COMMAND:
+    execute_and(c);
+    break;
 
     /* case OR_COMMAND: */
     /*   execute_or(c); */
@@ -119,16 +119,62 @@ execute_simple(command_t c)
       argv[index] = NULL;
       
       if (execvp(*argv, argv) < 0)
-	error(1, 0, "ERROR IN EXECVP");
+	{
+	  fprintf(stderr, "timetrash: %s: command not found\n", *argv);
+	  exit(1);
+	}
 	  
     }
   else if (p > 0) //parent
     {
-      //hang up shell until done
-      while( wait(&status) != p);
+      waitpid(p, &status, 0);
+      c->status = status % 255;
     }
   else //error
     error (1, 0, "Error in fork!");
+}
+
+void
+execute_and(command_t c)
+{
+  int time_travel = 0;
+  int child1_status, child2_status;
+  pid_t pid1, pid2;
+
+  pid1 = fork();
+  if (pid1 < 0)
+    error(1,0,"Error forking left operand of &&");
+  else if (pid1 == 0)
+    {
+      // This executes the left operand, which will always execute
+      execute_command(c->u.command[0], time_travel);
+      exit(command_status(c->u.command[0]));
+    }
+  else
+    {
+      waitpid(pid1, &child1_status, 0);
+      if (child1_status == 0)
+	{
+	  pid2 = fork();
+	  if (pid2 < 0)
+	    error(1,0, "Error forking right operand of &&");
+	  else if (pid2 == 0)
+	    {
+	      //Execute right operand
+	      execute_command(c->u.command[1], time_travel);
+	    }
+	  else
+	    {
+	      waitpid(pid2, &child2_status, 0);
+	      c->status = child2_status % 255;
+	    }
+	}
+      else
+	{
+	  c->status = child1_status;
+	  return;
+	}
+    }
 }
 
 void
