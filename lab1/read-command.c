@@ -531,6 +531,7 @@ command_stream* sortCommands(token_stream *t_stream){
 	      precedenceTop = 2;
 	      break;
 	    default:
+	      precedenceTop = -1;
 	      break;
 	    }
 	  }
