@@ -659,8 +659,8 @@ validate(token_stream *ts)
   // increments on newline, used for stderr output
   int line_num = 1;
 
-  // assert that first is a word initially
-  if (first->tokenType != WORD)
+  // assert that first is a word, paren, or backtick initially
+  if (first->tokenType != WORD && first->tokenType != PAREN && first->tokenType != BACKTICK)
     is_valid = false;
   
   while(second->next != NULL && is_valid)

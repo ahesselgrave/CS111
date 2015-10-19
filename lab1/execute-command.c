@@ -56,9 +56,9 @@ execute_command (command_t c, int time_travel)
     execute_pipe(c);
     break; 
 
-    /* case SUBSHELL_COMMAND: */
-    /*   execute_subshell(c); */
-    /*   break; */    
+  case SUBSHELL_COMMAND:
+    execute_subshell(c);
+    break;    
     
   default:
     //How did we get here?
@@ -296,7 +296,8 @@ execute_sequence(command_t c){
   }
   }
 */
-void execute_sequence(command_t c){
+void
+execute_sequence(command_t c){
   int timetravel = 0;
   command_t first = c->u.command[0];
   command_t second = c->u.command[1];
@@ -327,4 +328,25 @@ void execute_sequence(command_t c){
   else{
     error(1,0,"error forking");
   }
+}
+
+void
+execute_subshell(command_t c)
+{
+  int time_travel = 0;
+  int status;
+  pid_t pid;
+  pid = fork();
+  if (pid < 0)
+    error(1,0,"Error forking in subshell");
+  else if (pid == 0)
+    {
+      execute_command(c->u.subshell_command, time_travel);
+      exit(command_status(c->u.subshell_command));
+    }
+  else
+    {
+      waitpid(pid, &status, 0);
+      c->status = status % 255;
+    }
 }
