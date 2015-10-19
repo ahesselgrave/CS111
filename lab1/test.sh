@@ -1,5 +1,7 @@
-echo a b c d e f g h i j k l m n o p q r s t u v w x y z >alphabet.txt
+true && echo we should see this
 
-cat <README >README.cat
+true || echo we should not see this
+
+false || echo we should also see this
 
 

@@ -44,9 +44,9 @@ execute_command (command_t c, int time_travel)
     execute_and(c);
     break;
 
-    /* case OR_COMMAND: */
-    /*   execute_or(c); */
-    /*   break; */
+  case OR_COMMAND:
+    execute_or(c);
+    break;
 
   case SEQUENCE_COMMAND: 
     execute_sequence(c); 
@@ -162,6 +162,50 @@ execute_and(command_t c)
 	    {
 	      //Execute right operand
 	      execute_command(c->u.command[1], time_travel);
+	      exit(command_status(c->u.command[1]));
+	    }
+	  else
+	    {
+	      waitpid(pid2, &child2_status, 0);
+	      c->status = child2_status % 255;
+	    }
+	}
+      else
+	{
+	  c->status = child1_status;
+	  return;
+	}
+    }
+}
+void
+execute_or(command_t c)
+{
+  int time_travel = 0;
+  int child1_status, child2_status;
+  pid_t pid1, pid2;
+
+  pid1 = fork();
+  if (pid1 < 0)
+    error(1,0,"Error forking left operand of &&");
+  else if (pid1 == 0)
+    {
+      // This executes the left operand, which will always execute
+      execute_command(c->u.command[0], time_travel);
+      exit(command_status(c->u.command[0]));
+    }
+  else
+    {
+      waitpid(pid1, &child1_status, 0);
+      if (child1_status != 0)
+	{
+	  pid2 = fork();
+	  if (pid2 < 0)
+	    error(1,0, "Error forking right operand of &&");
+	  else if (pid2 == 0)
+	    {
+	      //Execute right operand
+	      execute_command(c->u.command[1], time_travel);
+	      exit(command_status(c->u.command[1]));
 	    }
 	  else
 	    {
