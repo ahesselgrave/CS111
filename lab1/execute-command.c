@@ -260,8 +260,8 @@ execute_pipe(command_t c){
     c->status = c->u.command[1]->status;
   }
 }
-       
-/*void
+ 
+void
 execute_sequence(command_t c){
   int timetravel = 0;
   command_t firstC = c->u.command[0];
@@ -272,20 +272,20 @@ execute_sequence(command_t c){
   pid= fork();
   if (pid > 0){
     waitpid(0,&status,0);
-    c->status = status;
+    c->status = status %255;
   }
   else if (pid == 0){
     pid = fork();
     if (pid > 0){
       waitpid(0,&status,0);
       execute_command(secondC,timetravel);
-      _exit(secondC->status);
-      //c->status = secondC->status;
+      //_exit terminates calling process and argument is returned to parent
+      //process as exit status
+      _exit(command_status(secondC));
     }
     else if (pid == 0){
       execute_command(firstC, timetravel);
-      _exit(firstC->status);
-      //c->status = firstC->status;
+      _exit(command_status(firstC));
     }
     else{
       error(1,0,"error in forking");
@@ -295,7 +295,8 @@ execute_sequence(command_t c){
     error(1,0,"error in forking");
   }
   }
-*/
+
+/*
 void
 execute_sequence(command_t c){
   int timetravel = 0;
@@ -306,7 +307,8 @@ execute_sequence(command_t c){
   pid = fork();
   if (pid > 0){
     waitpid(0,&status,0);
-    c->status = status;
+    //c->status = status;
+    c->status = second->status;
   }
   else if (pid == 0){
     pid = fork();
@@ -316,20 +318,20 @@ execute_sequence(command_t c){
     else if (pid == 0){
       execute_command(first,timetravel);
       c->status=first->status;
-      exit(2);
+      exit(first->status);
     }
     else{
       waitpid(pid,&status,0);
       execute_command(second,timetravel);
       c->status=second->status;
-      exit(2);
+      exit(second->status);
     }
   }
   else{
     error(1,0,"error forking");
   }
 }
-
+*/
 void
 execute_subshell(command_t c)
 {
