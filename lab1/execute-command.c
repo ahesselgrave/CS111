@@ -246,7 +246,7 @@ execute_pipe(command_t c){
     close(infoPipe[1]);
     execute_command(c->u.command[0],timetravel);
     c->status = c->u.command[0]->status;
-    
+    exit(command_status(c));
   }
   //parent executes right side of pipe
   else{
@@ -281,7 +281,7 @@ execute_sequence(command_t c){
       execute_command(secondC,timetravel);
       //_exit terminates calling process and argument is returned to parent
       //process as exit status
-      _exit(command_status(secondC));
+      exit(command_status(secondC));
     }
     else if (pid == 0){
       execute_command(firstC, timetravel);
