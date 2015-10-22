@@ -82,6 +82,11 @@ execute_simple(command_t c)
 	{
 	  // open the file in command input and clone the fd into stdin
 	  int in = open(c->input, O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	  //if error with opening file because it doesn't exist
+	  if ( in == -1){
+	    fprintf(stderr, "%s: No such file or directory\n", c->input);
+	    exit(1);
+	  }
 	  dup2(in, STDIN);
 	  close(in);
 	  
