@@ -19,3 +19,7 @@ which was traversed in read_command_stream.
 To our knowledge, there are no limitations to our design. Malloced blocks are reallocated if they can possibly grow, and
 all special tokens and trailing whitespace are accounted for.
 
+1b:
+For execute-command.c, we created a switch statement which executed a different
+function depending on the type of command passed in. To execute the commands,
+we used different system calls including execvp, fork, waitpid, pipe, and dup2.In the smaller functions, we forked a child process to execute the command and returned the exit status to the parent.  
