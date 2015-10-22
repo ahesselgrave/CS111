@@ -572,6 +572,53 @@ command_stream* sortCommands(token_stream *t_stream){
       if (sizeOfStack(commandStack) >= 2){
 	if ( (strcmp((top(commandStack))->u.word[0],"<") == 0) || (strcmp((top(commandStack))->u.word[0] ,">") ==0)){
 	  //pop top two commands and make simple command with input/output redirect
+
+	  //CHANGED HERE!!!! ///////
+	  command_t redirect = pop(commandStack);
+	  command_t wordForCommand = pop(commandStack);
+	  if (wordForCommand->type == SUBSHELL_COMMAND){
+	    wordForCommand -> input = NULL;
+	    wordForCommand->output = NULL;
+            // remove trailing spaces at the end
+	    char *io = strtok(tokenPointer->t, " ");
+	    if (strcmp(redirect->u.word[0],"<") == 0){
+	      wordForCommand->input = io;
+	      //wordForCommand->u.word = (char **) checked_malloc(sizeof(char **));
+	      //wordForCommand->u.word = wordForCommand->u.word;
+	    }
+	    if (strcmp(redirect->u.word[0],">") == 0){
+	      wordForCommand->output = io;
+	      //currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
+	      //currentCmd->u.word = wordForCommand->u.word;
+	      
+	      // check if wordForCommand has input
+	      //if (wordForCommand->input)
+	      //currentCmd->input = wordForCommand->input;
+	    }
+	    push(commandStack,wordForCommand);
+	    /*
+	    currentCmd->type = SUBSHELL_COMMAND;
+	    currentCmd-> input = NULL;
+	    currentCmd-> output = NULL;
+	    // remove trailing spaces at the end
+	    char *io = strtok(tokenPointer->t, " ");
+	    if (strcmp(redirect->u.word[0],"<") == 0){
+	      currentCmd->input = io;
+	      currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
+	      currentCmd->u.word = wordForCommand->u.word;
+	    }
+	    if (strcmp(redirect->u.word[0],">") == 0){
+	      currentCmd->output = io;
+	      currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
+	      currentCmd->u.word = wordForCommand->u.word;
+	      // check if wordForCommand has input
+	      if (wordForCommand->input)
+		currentCmd->input = wordForCommand->input;
+	    }
+	    push(commandStack,currentCmd);*/
+	  }
+	  
+	  else{
 	  currentCmd = checked_malloc(sizeof(struct command));//
 	  // null input and output, modify as needed
 	  currentCmd->input = NULL;
@@ -597,6 +644,7 @@ command_stream* sortCommands(token_stream *t_stream){
 	      currentCmd->input = wordForCommand->input;
 	  }
 	  push(commandStack,currentCmd);
+	  }
 	}
 	else{
 	  currentCmd = checked_malloc(sizeof(struct command));//
