@@ -399,16 +399,15 @@ command_stream* sortCommands(token_stream *t_stream){
 	// null input and output, modify as needed
 	currentCmd->input = NULL;
 	currentCmd->output = NULL;
-  
-
+	
+	
 	currentCmd->type = SIMPLE_COMMAND;
-        currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
+	currentCmd->u.word = (char **) checked_malloc(sizeof(char **));
 	currentCmd->u.word[0] =(char *) checked_malloc(sizeof(char *));
 	currentCmd->u.word[0] = tokenPointer->t;
 	currentCmd->u.word[1] = (char *) checked_malloc(sizeof(char *));
 	currentCmd->u.word[1] = NULL;
 	push(commandStack,currentCmd);
-
       }
       //if operator stack empty, push onto stack
       else if(operatorStack->top == -1){
@@ -577,8 +576,8 @@ command_stream* sortCommands(token_stream *t_stream){
 	  command_t redirect = pop(commandStack);
 	  command_t wordForCommand = pop(commandStack);
 	  if (wordForCommand->type == SUBSHELL_COMMAND){
-	    wordForCommand -> input = NULL;
-	    wordForCommand->output = NULL;
+	    //wordForCommand -> input = NULL;
+	    //wordForCommand->output = NULL;
             // remove trailing spaces at the end
 	    char *io = strtok(tokenPointer->t, " ");
 	    if (strcmp(redirect->u.word[0],"<") == 0){

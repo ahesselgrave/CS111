@@ -1,1 +1,2 @@
-(ls | grep a && false) && true
+(cat) <test.sh 
+
