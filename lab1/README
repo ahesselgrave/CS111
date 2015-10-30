@@ -22,4 +22,10 @@ all special tokens and trailing whitespace are accounted for.
 1b:
 For execute-command.c, we created a switch statement which executed a different
 function depending on the type of command passed in. To execute the commands,
-we used different system calls including execvp, fork, waitpid, pipe, and dup2.In the smaller functions, we forked a child process to execute the command and returned the exit status to the parent.  
+we used different system calls including execvp, fork, waitpid, pipe, and dup2.
+
+At the end of the day, we just recursively call execute_command and set up to run
+execute_simple for SIMPLE_COMMAND types, which will create an argument vector and
+run execvp in the child. If that fails, then the program is not in the PATH and
+an appropriate error message will be printed to stderr. All the other execute_* functions
+use the appropriate system call(s) to create child to recurse down the command tree.
