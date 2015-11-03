@@ -1,8 +1,9 @@
 // UCLA CS 111 Lab 1 command execution
 
-#include "alloc.h"
-#include "command.h"
-#include "command-internals.h"
+//#include "alloc.h"
+//#include "command.h"
+//#include "command-internals.h"
+#include "util-structs.h"
 #include <string.h>
 #include <error.h>
 #include <fcntl.h>
@@ -29,7 +30,16 @@ void execute_pipe(command_t c);
 void execute_subshell(command_t c);
 
 void
-execute_command (command_t c, int time_travel)
+execute_parallel(command_stream_t c)
+{
+  queue_t *q = checked_malloc(sizeof(queue_t));
+  init(q);
+  q->methods->insert(c,q);
+  command_stream_t cs = q->methods->pop(q);
+}
+
+void
+execute_command (command_t c)
 {
   /* FIXME: Replace this with your implementation.  You may need to
      add auxiliary functions and otherwise modify the source code.
@@ -64,8 +74,7 @@ execute_command (command_t c, int time_travel)
     //How did we get here?
     error(1,0,"YOU BROKE IT GOOD JOB!");
   }
-  // avoid compiler warning with -Werror on
-  time_travel;
+
 }
   
 void
@@ -152,7 +161,7 @@ execute_and(command_t c)
   else if (pid1 == 0)
     {
       // This executes the left operand, which will always execute
-      execute_command(c->u.command[0], time_travel);
+      execute_command(c->u.command[0]);
       exit(command_status(c->u.command[0]));
     }
   else
@@ -166,7 +175,7 @@ execute_and(command_t c)
 	  else if (pid2 == 0)
 	    {
 	      //Execute right operand
-	      execute_command(c->u.command[1], time_travel);
+	      execute_command(c->u.command[1]);
 	      exit(command_status(c->u.command[1]));
 	    }
 	  else
@@ -195,7 +204,7 @@ execute_or(command_t c)
   else if (pid1 == 0)
     {
       // This executes the left operand, which will always execute
-      execute_command(c->u.command[0], time_travel);
+      execute_command(c->u.command[0]);
       exit(command_status(c->u.command[0]));
     }
   else
@@ -209,7 +218,7 @@ execute_or(command_t c)
 	  else if (pid2 == 0)
 	    {
 	      //Execute right operand
-	      execute_command(c->u.command[1], time_travel);
+	      execute_command(c->u.command[1]);
 	      exit(command_status(c->u.command[1]));
 	    }
 	  else
@@ -249,7 +258,7 @@ execute_pipe(command_t c){
       error(1,0,"ERROR WITH DUP2");
     }
     close(infoPipe[1]);
-    execute_command(c->u.command[0],timetravel);
+    execute_command(c->u.command[0]);
     c->status = c->u.command[0]->status;
     exit(command_status(c));
   }
@@ -261,7 +270,7 @@ execute_pipe(command_t c){
       error(1,0,"ERROR WITH DUP2");
     }
     close(infoPipe[0]);
-    execute_command(c->u.command[1],timetravel);
+    execute_command(c->u.command[1]);
     c->status = c->u.command[1]->status;
   }
 }
@@ -283,13 +292,13 @@ execute_sequence(command_t c){
     pid = fork();
     if (pid > 0){
       waitpid(0,&status,0);
-      execute_command(secondC,timetravel);
+      execute_command(secondC);
       //_exit terminates calling process and argument is returned to parent
       //process as exit status
       exit(command_status(secondC));
     }
     else if (pid == 0){
-      execute_command(firstC, timetravel);
+      execute_command(firstC);
       _exit(command_status(firstC));
     }
     else{
@@ -367,7 +376,7 @@ execute_subshell(command_t c)
 	  dup2(out, STDOUT);
 	  close(out);
 	}
-      execute_command(c->u.subshell_command, time_travel);
+      execute_command(c->u.subshell_command);
       exit(command_status(c->u.subshell_command));
     }
   else

@@ -43,6 +43,6 @@ $(TEST_BASES): timetrash
 	./$@.sh
 
 clean:
-	rm -fr *.o *~ *.bak *.tar.gz core *.core *.tmp timetrash $(DISTDIR)
+	rm -fr *.o *~ *.bak *.tar.gz core *.core *.tmp *.txt timetrash $(DISTDIR)
 
 .PHONY: all dist check $(TEST_BASES) clean
