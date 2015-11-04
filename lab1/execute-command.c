@@ -33,7 +33,7 @@ void
 execute_parallel(command_stream_t c)
 {
   queue_t *q = checked_malloc(sizeof(queue_t));
-  init(q);
+  queue_init(q);
   q->methods->insert(c,q);
   command_stream_t cs = q->methods->pop(q);
 }
