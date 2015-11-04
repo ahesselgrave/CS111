@@ -577,8 +577,6 @@ command_stream* sortCommands(token_stream *t_stream){
 	  command_t redirect = pop(commandStack);
 	  command_t wordForCommand = pop(commandStack);
 	  if (wordForCommand->type == SUBSHELL_COMMAND){
-	    wordForCommand -> input = NULL;
-	    wordForCommand->output = NULL;
             // remove trailing spaces at the end
 	    char *io = strtok(tokenPointer->t, " ");
 	    if (strcmp(redirect->u.word[0],"<") == 0){
@@ -625,8 +623,8 @@ command_stream* sortCommands(token_stream *t_stream){
 	  currentCmd->output = NULL;
   
 
-	  command_t redirect = pop(commandStack);
-	  command_t wordForCommand = pop(commandStack);
+	  //command_t redirect = pop(commandStack);
+	  //command_t wordForCommand = pop(commandStack);
 	  currentCmd->type = SIMPLE_COMMAND;
 	  // remove trailing spaces at the end
 	  char *io = strtok(tokenPointer->t, " ");

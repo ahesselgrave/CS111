@@ -14,6 +14,112 @@
 #define STDIN 0
 #define STDOUT 1
 
+static char const *script_name;
+
+static int
+get_next_byte (void *stream)
+{
+  return getc (stream);
+}
+
+typedef struct command_stream
+{
+    struct command_node
+    {
+      struct command_node *next;
+      command_t command;
+    } *head, *tail;
+
+  int numNodes;
+} command_stream;
+
+
+//in real implementation will take in queue as arg and pop to get command streams for each level
+void run_in_parallel(){
+  
+  //read in command_streams for each level
+  //in final program, queue of command streams will be passed in
+  script_name = "test6.sh";
+  FILE *script_stream = fopen(script_name,"r");
+  command_stream_t command_stream = make_command_stream(get_next_byte,script_stream);
+  /*script_name = "test3.sh";
+  FILE *script_stream = fopen (script_name, "r");
+  command_stream_t command_stream1 =
+      make_command_stream (get_next_byte, script_stream);
+  script_name = "test4.sh";
+  FILE *script_stream1 = fopen (script_name, "r");
+  command_stream_t command_stream2 =
+      make_command_stream (get_next_byte, script_stream1);
+  script_name = "test5.sh";
+  FILE *script_stream2 = fopen (script_name, "r");
+  command_stream_t command_stream3 =
+  make_command_stream (get_next_byte, script_stream2);*/
+
+  //for now hard code # of commands in stream, later will have member of command_stream that will give # in stream
+  //while queue not empty
+  //pop off next command stream and pass to running function which will run commands in parallel
+  
+  running(2, command_stream);
+  /*running(3,command_stream1);
+  running(2,command_stream2);
+  running(1,command_stream3);  
+  */
+}
+
+void running(int count, command_stream_t commandStream){
+  //array to keep track if child thread running or done
+  pid_t *runningChildren = malloc(count * sizeof(pid_t));
+  int positionInArray;
+  command_t command;
+  //run commands in parallel
+  //will replace read_command_stream with way to pop of command from command_stream
+  while ((command = read_command_stream(commandStream))){
+    //fork
+    pid_t child = fork();
+    if (child == 0){
+      execute_command(command, 0);
+      exit(0);
+    }
+    else if (child > 0){
+      //parent: save pid of child into array
+      runningChildren[positionInArray] = child;
+    }
+    else{
+      error(1, 0, "Cannot create child process.");
+    }
+    positionInArray++;
+  }
+
+  //wait for forks to finish
+  int wait = 1;
+  while (wait == 1){
+    int j;
+    for ( j = 0; j < count; j++){
+      //if child still running
+      if (runningChildren[j] > 0){
+	//has changed state --> done running
+	if (waitpid(runningChildren[j],NULL,0) != 0){
+	  //set PID in array to 0 so know that done running
+	  runningChildren[j] =0;
+	}
+      }
+    }
+
+    //check that all children done running
+    int left = 0;
+    for ( j = 0; j <count ; j++){
+      if (runningChildren[j] != 0){
+	left++;
+      }
+    }
+    //if none left running, then can break out of loop
+    if (left == 0){
+      wait = 0;
+    }
+  }
+  free(runningChildren);
+}
+
 int
 command_status (command_t c)
 {
@@ -343,6 +449,61 @@ execute_subshell(command_t c)
   int time_travel = 0;
   int status;
   pid_t pid;
+  //if have input/output treat as IO
+  if (c->input != NULL || c->output != NULL){
+    if (c->input)
+      {
+	// open the file in command input and clone the fd into stdin
+	int in = open(c->input, O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	//if error with opening file because it doesn't exist
+	if ( in == -1){
+	  fprintf(stderr, "%s: No such file or directory\n", c->input);
+	  exit(1);
+	}
+	dup2(in, STDIN);
+	close(in);
+
+      }
+    if (c->output)
+      {
+	int out = open(c->output, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	dup2(out, STDOUT);
+	close(out);
+      }
+    // guess two arguments, realloc if needed
+    int num_args = 2;
+    int index = 0;
+    char **argv = (char **) checked_malloc(sizeof(char *) * num_args);
+    char **w = c->u.word;
+    while(*w)
+      {
+	size_t len = strlen(*w);
+	argv[index] = (char *) checked_malloc(sizeof(char) * len);
+	strcpy(argv[index++], *w);
+	//realloc if needed
+	if (index > num_args)
+	  {
+	    num_args *= 2;
+	    argv = (char **) checked_realloc(argv, sizeof(char*) * num_args);
+	  }
+	w++;
+      }
+    //add null termination
+    if (index > num_args)
+      {
+	num_args *=2;
+	argv = (char **) checked_realloc(argv, sizeof(char) * num_args);
+      }
+    argv[index] = NULL;
+
+    if (execvp(*argv, argv) < 0)
+      {
+	fprintf(stderr, "timetrash: %s: command not found\n", *argv);
+	exit(1);
+      }
+	
+  }
+  else{
   pid = fork();
   if (pid < 0)
     error(1,0,"Error forking in subshell");
@@ -356,4 +517,5 @@ execute_subshell(command_t c)
       waitpid(pid, &status, 0);
       c->status = status % 255;
     }
+  }
 }

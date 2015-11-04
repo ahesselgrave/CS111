@@ -49,6 +49,12 @@ main (int argc, char **argv)
   FILE *script_stream = fopen (script_name, "r");
   if (! script_stream)
     error (1, errno, "%s: cannot open", script_name);
+
+  if (time_travel){
+    run_in_parallel();
+  }
+  return -1;
+  /*
   command_stream_t command_stream =
     make_command_stream (get_next_byte, script_stream);
 
@@ -56,7 +62,10 @@ main (int argc, char **argv)
   command_t command;
   while ((command = read_command_stream (command_stream)))
     {
-      if (print_tree)
+      if (time_travel){
+	run_in_parallel(command);
+      }
+      else if (print_tree)
 	{
 	  printf ("# %d\n", command_number++);
 	  print_command (command);
@@ -67,6 +76,6 @@ main (int argc, char **argv)
 	  execute_command (command, time_travel);
 	}
     }
-
-  return print_tree || !last_command ? 0 : command_status (last_command);
+  
+    return print_tree || !last_command ? 0 : command_status (last_command);*/
 }
