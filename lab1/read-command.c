@@ -10,7 +10,6 @@
 
 #include "alloc.h"
 #include "command.h"
-#include "command-internals.h"
 
 #include <error.h>
 #include <ctype.h>
@@ -22,17 +21,50 @@
 #define TT_TOKEN_BUFSIZE 128
 
 // command_stream holds a linked list of command trees, with each node's command_t being the root pointer
-typedef struct command_stream
-{
-  struct command_node
-  {
-    struct command_node *next;
-    command_t command;
-  } *head, *tail;
+/* typedef struct command_stream */
+/* { */
+/*   struct command_node */
+/*   { */
+/*     struct command_node *next; */
+/*     command_t command; */
+/*   } *head, *tail; */
+/*   command_stream_methods *methods; */
+/*   int numNodes; */
+/* } command_stream; */
 
-  int numNodes;
-} command_stream;
+/* struct command_stream_methods */
+/* { */
+/*   int (*size)(command_stream_t); */
+/*   void (*insert)(command_stream_t, command_t); */
+/* } */
 
+/* int */
+/* command_stream_size(command_stream_t c) */
+/* { */
+/*   return c->numNodes; */
+/* } */
+
+/* void */
+/* command_stream_insert(command_stream_t c, command_t command) */
+/* { */
+/*   c->numNodes++; */
+/*   c->tail->command = command; */
+/*   c->tail->next = checked_malloc(sizeof(struct command_node)); */
+/*   c->tail = c->tail->next; */
+/*   c->tail->next = NULL; */
+/* } */
+
+/* void */
+/* command_stream_init(command_stream_t c) */
+/* { */
+/*   c->head = checked_malloc(sizeof(struct command_node)); */
+/*   c->head->next = NULL; */
+/*   c->tail = c->head; */
+/*   c->numNodes = 0; */
+/*   c->methods->size = command_stream_size; */
+/*   c->methods->insert = command_stream_insert; */
+/* } */
+  
 enum token_type{
   WORD,  //0
   AND_OR, //1
@@ -284,7 +316,7 @@ void setTokenType(int first, int second, token_stream *ts){
   //if token type isn't already set (7=NONE)
   if(ts->tail->tokenType == 7){
     if (isalnum(first) || isSymbol(first)){
-      ts->tail->tokenType = 0;
+       ts->tail->tokenType = 0;
     }
     if ((first == '&' && second =='&') ||
 	(first == '|' && second == '|')){

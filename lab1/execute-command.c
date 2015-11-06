@@ -1,15 +1,15 @@
 // UCLA CS 111 Lab 1 command execution
 
-//#include "alloc.h"
-//#include "command.h"
-//#include "command-internals.h"
+#include "alloc.h"
+#include "command.h"
 #include "util-structs.h"
 #include <string.h>
 #include <error.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/wait.h> 
+#include <sys/wait.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #define STDIN 0
@@ -30,8 +30,10 @@ void execute_pipe(command_t c);
 void execute_subshell(command_t c);
 
 /* add_dependencies takes a command and a read and write tree to see if a command is dependent
-   on another command. If it is, we increment the command's level by 1 to indicate order of execution */
-void
+   on another command. If it is, we increment the command's level by 1 to indicate order of execution.
+   Returns the level of the command 
+*/
+int
 add_dependencies(command_t c, file_vector_t *read, file_vector_t *write)
 {
   switch(c->type)
@@ -96,6 +98,7 @@ add_dependencies(command_t c, file_vector_t *read, file_vector_t *write)
       add_dependencies(c->u.subshell_command, read, write);
       break;
     }
+  return c->level;
 }
 
 
@@ -103,9 +106,15 @@ void
 execute_parallel(command_stream_t c)
 {
   int NUM_COMMANDS = 100;
+  
   int index = 0;
+  int max_level = 1;
   command_t command;
   command_t *command_array = checked_malloc(sizeof(command_t) * NUM_COMMANDS);
+  command_stream_t *command_stream_array;
+  queue_t *command_stream_queue = checked_malloc(sizeof(queue_t));
+  queue_init(command_stream_queue);
+  
   file_vector_t *read = checked_malloc(sizeof(file_vector_t));
   file_vector_t *write = checked_malloc(sizeof(file_vector_t));
   file_vector_init(read); file_vector_init(write);
@@ -120,8 +129,27 @@ execute_parallel(command_stream_t c)
 	  NUM_COMMANDS *= 2;
 	  command_array = checked_realloc(command_array, NUM_COMMANDS * sizeof(command_t));
 	}
-      add_dependencies(command, read, write);
+      int current_level = add_dependencies(command, read, write);
+      max_level = current_level > max_level ? current_level : max_level;
     }
+
+  // Generate <max_level> number of command_streams and push into the array and queue
+  command_stream_array = checked_malloc(sizeof(command_stream_t) * max_level);
+  for (int i = 0; i < max_level; i++)
+    {
+      command_stream_array[i] = checked_malloc(sizeof(command_stream));
+      command_stream_init(command_stream_array[i]);
+      command_stream_queue->methods->insert(command_stream_queue, command_stream_array[i]);
+    }
+
+  // Add each command to the appropriate command stream
+  for (int i = 0; i < index; i++)
+    {
+      int level = command_array[i]->level;
+      command_stream_array[level - 1]->methods->insert(command_stream_array[level - 1], 
+						       command_array[i]);
+    }
+
 }
 
 void

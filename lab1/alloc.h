@@ -1,4 +1,6 @@
 // UCLA CS 111 Lab 1 storage allocation
+#pragma once
+
 #include <stddef.h>
 void *checked_malloc (size_t);
 void *checked_realloc (void *, size_t);
