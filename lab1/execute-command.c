@@ -29,13 +29,99 @@ void execute_sequence(command_t c);
 void execute_pipe(command_t c);
 void execute_subshell(command_t c);
 
+/* add_dependencies takes a command and a read and write tree to see if a command is dependent
+   on another command. If it is, we increment the command's level by 1 to indicate order of execution */
+void
+add_dependencies(command_t c, file_vector_t *read, file_vector_t *write)
+{
+  switch(c->type)
+    {
+    case SIMPLE_COMMAND:
+      if (c->input)
+	{
+	  // check for RAW
+	  if (write->methods->find(write, c->input) == -1)
+	    read->methods->insert(read, c->input);
+	  else
+	    c->level++;
+	}
+      if (c->output)
+	{
+	  // check for WAW and WAR
+	  if (write->methods->find(write, c->output) == -1 &&
+	      read->methods->find(read, c->output) == -1)
+	    write->methods->insert(write, c->output);
+	  else
+	    c->level++;
+	}
+      // check everything in word except the command name
+      char **w = &(c->u.word[1]);
+      while(*w)
+	{
+	  // check for RAW
+	  if (write->methods->find(write, *w) == -1)
+	    read->methods->insert(read, *w);
+	  else
+	    c->level++;
+	  w++;
+	}
+      break;
+
+    case AND_COMMAND:
+    case OR_COMMAND:
+    case SEQUENCE_COMMAND:
+    case PIPE_COMMAND:
+      add_dependencies(c->u.command[0], read, write);
+      add_dependencies(c->u.command[1], read, write);
+      break;
+
+    case SUBSHELL_COMMAND:
+      if (c->input)
+	{
+	  // check for RAW
+	  if (write->methods->find(write, c->input) == -1)
+	    read->methods->insert(read, c->input);
+	  else
+	    c->level++;
+	}
+      if (c->output)
+	{
+	  // check for WAW and WAR
+	  if (write->methods->find(write, c->output) == -1 &&
+	      read->methods->find(read, c->output) == -1)
+	    write->methods->insert(write, c->output);
+	  else
+	    c->level++;
+	}
+      add_dependencies(c->u.subshell_command, read, write);
+      break;
+    }
+}
+
+
 void
 execute_parallel(command_stream_t c)
 {
-  queue_t *q = checked_malloc(sizeof(queue_t));
-  queue_init(q);
-  q->methods->insert(c,q);
-  command_stream_t cs = q->methods->pop(q);
+  int NUM_COMMANDS = 100;
+  int index = 0;
+  command_t command;
+  command_t *command_array = checked_malloc(sizeof(command_t) * NUM_COMMANDS);
+  file_vector_t *read = checked_malloc(sizeof(file_vector_t));
+  file_vector_t *write = checked_malloc(sizeof(file_vector_t));
+  file_vector_init(read); file_vector_init(write);
+  
+  while( (command = read_command_stream(c)) )
+    {
+      command->number = index;
+      command->level = 1;
+      command_array[index++] = command;
+      if (index > NUM_COMMANDS)
+	{
+	  NUM_COMMANDS *= 2;
+	  command_array = checked_realloc(command_array, NUM_COMMANDS * sizeof(command_t));
+	}
+      add_dependencies(command, read, write);
+    }
 }
 
 void

@@ -6,3 +6,6 @@
 # .nfs
 .nfs*
 
+# project files
+*.o
+timetrash

@@ -33,4 +33,6 @@ struct command
     // for SUBSHELL_COMMAND:
     struct command *subshell_command;
   } u;
+  int number;
+  int level;
 };
