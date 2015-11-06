@@ -29,3 +29,15 @@ execute_simple for SIMPLE_COMMAND types, which will create an argument vector an
 run execvp in the child. If that fails, then the program is not in the PATH and
 an appropriate error message will be printed to stderr. All the other execute_* functions
 use the appropriate system call(s) to create child to recurse down the command tree.
+
+1c:
+Before running commands in parallel, we had to check dependencies across all the commands. First, we added a level to commands,
+the default being 1. This will be explained more later.
+We used a struct called file_vector_t which contained a list of file names and a virtual lookup table of helper functions to find and insert file names.
+We used two of these structs, one for reads and one for writes. We iterated through every command and added the appropriate filenames
+to the appropriate vector. If a command depended on a file already in the list, we incremented its level by 1. Eventually, every command is accounted for and
+has its appropriate level.
+
+Our approach doesn't actually care what command depends on which one, because it really doesn't matter. Every command in the same level has no dependencies amongst
+each other, and higher level commands have to wait for all the lower level commands to execute, which is precisely what we did. We made a FIFO queue of command streams,
+each one holding all commands of a certain level. Then we popped the queue and executed each stream serially, with each command in the stream executed in parallel via forking.

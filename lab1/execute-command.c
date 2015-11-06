@@ -101,6 +101,61 @@ add_dependencies(command_t c, file_vector_t *read, file_vector_t *write)
   return c->level;
 }
 
+void
+running(command_stream_t commandStream){
+  //array to keep track if child thread running or done
+  int count = commandStream->methods->size(commandStream);
+  pid_t *runningChildren = checked_malloc(count * sizeof(pid_t));
+  int positionInArray;
+  command_t command;
+  //run commands in parallel
+  //will replace read_command_stream with way to pop of command from command_stream
+  while ((command = read_command_stream(commandStream))){
+    //fork
+    pid_t child = fork();
+    if (child == 0){
+      execute_command(command);
+      exit(0);
+    }
+    else if (child > 0){
+      //parent: save pid of child into array
+      runningChildren[positionInArray] = child;
+    }
+    else{
+      error(1, 0, "Cannot create child process.");
+    }
+    positionInArray++;
+  }
+
+  //wait for forks to finish
+  int wait = 1;
+  while (wait == 1){
+    int j;
+    for ( j = 0; j < count; j++){
+      //if child still running
+      if (runningChildren[j] > 0){
+	//has changed state --> done running
+	if (waitpid(runningChildren[j],NULL,0) != 0){
+	  //set PID in array to 0 so know that done running
+	  runningChildren[j] =0;
+	}
+      }
+    }
+
+    //check that all children done running
+    int left = 0;
+    for ( j = 0; j <count ; j++){
+      if (runningChildren[j] != 0){
+	left++;
+      }
+    }
+    //if none left running, then can break out of loop
+    if (left == 0){
+      wait = 0;
+    }
+  }
+  free(runningChildren);
+}
 
 void
 execute_parallel(command_stream_t c)
@@ -150,6 +205,12 @@ execute_parallel(command_stream_t c)
 						       command_array[i]);
     }
 
+  // Execute the command streams serially
+  while(!command_stream_queue->methods->empty(command_stream_queue))
+    {
+      command_stream_t stream = command_stream_queue->methods->pop(command_stream_queue);
+      running(stream);
+    }
 }
 
 void
