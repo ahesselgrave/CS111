@@ -46,10 +46,10 @@ static int nsectors = 32;
 module_param(nsectors, int, 0);
 
 //struct to keep track of processes which have read lock
-struct pid_t_list{
+typedef struct pid_t_list{
   pid_t pid;
   struct pid_t_list* next;
-};
+} pid_t_list;
 
 /* The internal representation of our device. */
 typedef struct osprd_info {
@@ -74,10 +74,7 @@ typedef struct osprd_info {
   int numWriteLocks; //number of write locks issued (max should be 1)
   pid_t write_locking_pid; //pid of process holding write lock
   struct pid_t_list* read_locking_pid;//pids of processes holding read locks
-  /*
-  my_ticket_list_t *invalid_tickets; // store invalid ticket numbers 
-  */
-	  
+
   // The following elements are used internally; you don't need
   // to understand them.
   struct request_queue *queue;    // The device request queue.
@@ -202,11 +199,9 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
   osprd_info_t *d = file2osprd(filp);	// device info
   int r = 0;			// return value: initially 0
 
+  unsigned my_ticket; 
   // is file open for writing?
   int filp_writable = (filp->f_mode & FMODE_WRITE) != 0;
-
-  // This line avoids compiler warnings; you may remove it.
-  (void) filp_writable, (void) d;
 
   // Set 'r' to the ioctl's return value: 0 on success, negative on error
 
@@ -249,27 +244,58 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
     // Your code here (instead of the next two lines).
     //eprintk("Attempting to acquire\n");
     //r = -ENOTTY;
+
+    // DEADLOCK CASE:
+    // See if process is trying to lock itself
+    // check the write lock
+    if (d->write_locking_pid == current->pid)
+      return -EDEADLK;
+    // check the read lock(s)
+    struct pid_t_list *read_lock_iter = d->read_locking_pid;
+    while(read_lock_iter)
+      {
+	if(read_lock_iter->pid == current->pid)
+	  return -EDEADLK;
+	read_lock_iter = read_lock_iter->next;
+      }
+
     
     osp_spin_lock(&d->mutex);
+    my_ticket = d->ticket_head++;
+    osp_spin_unlock(&d->mutex);
+   
     if (filp_writable){
-      //try to get write lock - can't have any other lock
-      while (d->numReadLocks != 0 || d->numWriteLocks != 0){
-	osp_spin_unlock(&d->mutex);
-	schedule();
-	osp_spin_lock(&d->mutex);
-      }
+      // check for read and write locks
+      r = wait_event_interruptible(d->blockq,
+				   d->numReadLocks == 0 && 
+				   d->numWriteLocks == 0 &&
+				   d->ticket_tail == my_ticket);
+      // check for signals
+      if (r == -ERESTARTSYS)
+	  return r;
+
+      // if we get here, we have the lock
+      osp_spin_lock(&d->mutex);
       filp->f_flags |= F_OSPRD_LOCKED;
       d->numWriteLocks = 1;
       d->write_locking_pid = current->pid;
+      d->ticket_tail++;
+      osp_spin_unlock(&d->mutex);
     }
     else{
-      //try to get read lock - can't have any read locks
-      while(d->numWriteLocks != 0){
-	osp_spin_unlock(&d->mutex);
-	schedule();
-	osp_spin_lock(&d->mutex);
-      }
+      //try to get read lock - can't have any write locks
+      r = wait_event_interruptible(d->blockq,
+				   d->ticket_tail == my_ticket &&
+				   d->numWriteLocks == 0);
+      // check for signals
+      if (r == -ERESTARTSYS)
+	return r;
+
+      // if we get here, we have the lock
+      osp_spin_lock(&d->mutex);
       filp->f_flags |= F_OSPRD_LOCKED;
+      d->ticket_tail++;
+      // add PID to read lock list
       d->numReadLocks++;
       struct pid_t_list* prev = NULL;
       struct pid_t_list* curr = d->read_locking_pid;
@@ -290,8 +316,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 	prev->next->pid = current->pid;
 	prev->next->next = NULL;
       }
+      osp_spin_unlock(&d->mutex);
     }
-  osp_spin_unlock(&d->mutex);
   } else if (cmd == OSPRDIOCTRYACQUIRE) {
 
     // EXERCISE: ATTEMPT to lock the ramdisk.
@@ -305,11 +331,25 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
     //eprintk("Attempting to try acquire\n");
     //r = -ENOTTY;
 
+    // DEADLOCK CASE:
+    // See if process is trying to lock itself
+    // check the write lock
+    if (d->write_locking_pid == current->pid)
+      return -EBUSY;
+    // check the read lock(s)
+    pid_t_list *read_lock_iter = d->read_locking_pid;
+    while(read_lock_iter)
+      {
+	if(read_lock_iter->pid == current->pid)
+	  return -EBUSY;
+	read_lock_iter = read_lock_iter->next;
+      }
+
     if (filp_writable){
       osp_spin_lock(&d->mutex);
       //try to get write lock - can't have any other lock
       if (d->numReadLocks != 0 || d->numWriteLocks != 0){
-	r= -EBUSY;
+	r = -EBUSY;
       }
       else{
 	filp->f_flags |= F_OSPRD_LOCKED;
@@ -322,7 +362,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       osp_spin_lock(&d->mutex);
       //try to get read lock - can't have any read locks
       if(d->numWriteLocks != 0){
-	r= -EBUSY;
+	r = -EBUSY;
       }
       else{
 	filp->f_flags |= F_OSPRD_LOCKED;
@@ -334,7 +374,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 	  prev = curr;
 	  curr= curr->next;
 	}
-	if (prev == NULL){
+ 	if (prev == NULL){
 	  //nothing in read_locking_pid list
 	  d->read_locking_pid=kmalloc(sizeof(struct pid_t_list),GFP_ATOMIC);
 	  d->read_locking_pid->pid = current->pid;
@@ -361,6 +401,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
     // Your code here (instead of the next line).
     //r = -ENOTTY;
+
     //file hasn't locked the ramdisk
     osp_spin_lock(&d->mutex);
     if (d->numWriteLocks == 0 && d->numReadLocks == 0){
@@ -396,8 +437,9 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       //clear lock from fil_f_flags
       filp->f_flags &= !F_OSPRD_LOCKED;
     }
-  osp_spin_unlock(&d->mutex);
-  }else{
+    osp_spin_unlock(&d->mutex);
+  }
+  else{
     r = -ENOTTY; /* unknown command */
   }
  return r;
@@ -413,6 +455,9 @@ static void osprd_setup(osprd_info_t *d)
   osp_spin_lock_init(&d->mutex);
   d->ticket_head = d->ticket_tail = 0;
   /* Add code here if you add fields to osprd_info_t. */
+  d->numReadLocks = d->numWriteLocks = 0;
+  d->write_locking_pid = -1;
+  d->read_locking_pid = kmalloc(sizeof(struct pid_t_list), GFP_ATOMIC);
 }
 
 
