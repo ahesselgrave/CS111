@@ -9,9 +9,9 @@
 # the end of the file.
 
 # Partner 1
-Name: 
-Student ID: 
-Email: 
+Name: Alex Hesselgrave 
+Student ID: 904273474
+Email: ahesselgrave@ucla.edu
 
 # Partner 2
 Name: Kristen Chui
