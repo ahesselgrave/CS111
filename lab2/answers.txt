@@ -20,3 +20,14 @@ Email: kwchui@g.ucla.edu
 
 
 # Add any other information you'd like us to have below this line.
+Note from Alex:
+I ran our code on both Windows 8.1 64-bit VMWare Player and VirtualBox using the cs111-35.iso as the install disk.
+For some reason, on my machine test cases 6 and 15 will only sometimes work, and 16 and 17 always fail.
+However, on Kristen's OSX Yosemite Virtualbox, all the cases run flawlessly. I went as far as SFTPing her files over to
+my instance and running again, yet I got the same issue while her instance was flawless. We can't see any strange race conditions
+in the code (and regardless shouldn't they be consistent throughout the CS111 distro?). No idea why this happens, but it is something
+to consider when testing our code.
+
+UPDATE:
+I copied her VM harddrive file over to my Windows version and tried to run and got the same results. I don't know what the problem is.
+Here's the code anyways. Have fun
