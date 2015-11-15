@@ -123,11 +123,11 @@ start(void)
 	// Initialize the scheduling algorithm.
 	// USE THE FOLLOWING VALUES:
 	//    0 = the initial algorithm
-	//    2 = strict priority scheduling (exercise 2)
+	//    1 = strict priority scheduling (exercise 2)
 	//   41 = p_priority algorithm (exercise 4.a)
 	//   42 = p_share algorithm (exercise 4.b)
 	//    7 = any algorithm that you may implement for exercise 7
-	scheduling_algorithm = 0;
+	scheduling_algorithm = 1;
 
 	// Switch to the first process.
 	run(&proc_array[1]);
@@ -219,6 +219,7 @@ schedule(void)
 {
 	pid_t pid = current->p_pid;
 
+	//round robin
 	if (scheduling_algorithm == 0)
 		while (1) {
 			pid = (pid + 1) % NPROCS;
@@ -229,7 +230,31 @@ schedule(void)
 			if (proc_array[pid].p_state == P_RUNNABLE)
 				run(&proc_array[pid]);
 		}
+	// strict priority scheduling
+	else if (scheduling_algorithm == 1)
+	  {
+	    // do 4 passes through the process table
+	    int i;
+	    for (i = 0; i < NPROCS; i++)
+	      if (proc_array[i].p_state == P_RUNNABLE &&
+		  proc_array[i].p_pid == 1)
+		run(&proc_array[i]);
 
+	    for (i = 0; i < NPROCS; i++)
+	      if (proc_array[i].p_state == P_RUNNABLE &&
+		  proc_array[i].p_pid == 2)
+		run(&proc_array[i]);
+
+	    for (i = 0; i < NPROCS; i++)
+	      if (proc_array[i].p_state == P_RUNNABLE &&
+		  proc_array[i].p_pid == 3)
+		run(&proc_array[i]);
+
+	    for (i = 0; i < NPROCS; i++)
+	      if (proc_array[i].p_state == P_RUNNABLE &&
+		  proc_array[i].p_pid == 4)
+		run(&proc_array[i]);
+	  }
 	// If we get here, we are running an unknown scheduling algorithm.
 	cursorpos = console_printf(cursorpos, 0x100, "\nUnknown scheduling algorithm %d\n", scheduling_algorithm);
 	while (1)
