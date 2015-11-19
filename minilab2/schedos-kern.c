@@ -80,7 +80,6 @@ int scheduling_algorithm;
  *   the first process.
  *
  *****************************************************************************/
-
 void
 start(void)
 {
@@ -114,6 +113,26 @@ start(void)
 
 		// Mark the process as runnable!
 		proc->p_state = P_RUNNABLE;
+
+		// Give every process the same priority in the beginning
+		switch(i)
+		  {
+		  case 1:
+		    proc->p_priority = 10;
+		    break;
+		  case 2:
+		    proc->p_priority = 8;
+		    break;
+		  case 3:
+		  case 4:
+		    proc->p_priority = 6;
+		    break;
+		  default:
+		    proc->p_priority = 1;
+		    break;
+		  }
+
+		
 	}
 
 	// Initialize the cursor-position shared variable to point to the
@@ -124,10 +143,11 @@ start(void)
 	// USE THE FOLLOWING VALUES:
 	//    0 = the initial algorithm
 	//    1 = strict priority scheduling (exercise 2)
+
 	//   41 = p_priority algorithm (exercise 4.a)
 	//   42 = p_share algorithm (exercise 4.b)
 	//    7 = any algorithm that you may implement for exercise 7
-	scheduling_algorithm = 1;
+	scheduling_algorithm = 2;
 
 	// Switch to the first process.
 	run(&proc_array[1]);
@@ -177,10 +197,10 @@ interrupt(registers_t *reg)
 		schedule();
 
 	case INT_SYS_USER1:
-		// 'sys_user*' are provided for your convenience, in case you
-		// want to add a system call.
-		/* Your code here (if you want). */
-		run(current);
+	  // 'sys_user1' allows a user process to change its priority
+	  // to whatever value is stored in %eax
+	  current->p_priority = reg->reg_eax;
+	  schedule();
 
 	case INT_SYS_USER2:
 		/* Your code here (if you want). */
@@ -233,30 +253,58 @@ schedule(void)
 	// strict priority scheduling
 	else if (scheduling_algorithm == 1)
 	  {
-	    // do 4 passes through the process table
-	    int i;
-	    for (i = 0; i < NPROCS; i++)
-	      if (proc_array[i].p_state == P_RUNNABLE &&
-		  proc_array[i].p_pid == 1)
-		run(&proc_array[i]);
-
-	    for (i = 0; i < NPROCS; i++)
-	      if (proc_array[i].p_state == P_RUNNABLE &&
-		  proc_array[i].p_pid == 2)
-		run(&proc_array[i]);
-
-	    for (i = 0; i < NPROCS; i++)
-	      if (proc_array[i].p_state == P_RUNNABLE &&
-		  proc_array[i].p_pid == 3)
-		run(&proc_array[i]);
-
-	    for (i = 0; i < NPROCS; i++)
-	      if (proc_array[i].p_state == P_RUNNABLE &&
-		  proc_array[i].p_pid == 4)
-		run(&proc_array[i]);
+	    while(1)
+	      {// do 4 passes through the process table
+		int i;
+		for (i = 0; i < NPROCS; i++)
+		  if (proc_array[i].p_state == P_RUNNABLE &&
+		      proc_array[i].p_pid == 1)
+		    run(&proc_array[i]);
+		
+		for (i = 0; i < NPROCS; i++)
+		  if (proc_array[i].p_state == P_RUNNABLE &&
+		      proc_array[i].p_pid == 2)
+		    run(&proc_array[i]);
+		
+		for (i = 0; i < NPROCS; i++)
+		  if (proc_array[i].p_state == P_RUNNABLE &&
+		      proc_array[i].p_pid == 3)
+		    run(&proc_array[i]);
+		
+		for (i = 0; i < NPROCS; i++)
+		  if (proc_array[i].p_state == P_RUNNABLE &&
+		      proc_array[i].p_pid == 4)
+		    run(&proc_array[i]);
+	      }
 	  }
-	// If we get here, we are running an unknown scheduling algorithm.
-	cursorpos = console_printf(cursorpos, 0x100, "\nUnknown scheduling algorithm %d\n", scheduling_algorithm);
-	while (1)
-		/* do nothing */;
+
+	// priority scheduling by priority field
+	else if (scheduling_algorithm == 2)
+	  {
+	    while(1)
+	      {
+		// Run the highest priority process.
+		int i, max_priority = 0;
+
+		// Get highest priority, update each time
+		for (i = 0; i < NPROCS; i++)
+		  if (proc_array[i].p_priority > max_priority && 
+		      proc_array[i].p_state == P_RUNNABLE)
+		    max_priority = proc_array[i].p_priority;
+	
+		// go through each PID until we find the highest to run based on real time priority above
+		// also assures alteration at the cost of perfomance
+		pid = (pid + 1) % NPROCS;
+		if (proc_array[pid].p_state == P_RUNNABLE && 
+		    proc_array[pid].p_priority >= max_priority)
+		  run(&proc_array[pid]);
+	      }
+	  }
+	else
+	  {
+	    // If we get here, we are running an unknown scheduling algorithm.
+	    cursorpos = console_printf(cursorpos, 0x100, "\nUnknown scheduling algorithm %d\n", scheduling_algorithm);
+	    while (1)
+	      /* do nothing */;
+	  }
 }
