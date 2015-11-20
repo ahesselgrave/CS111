@@ -13,6 +13,15 @@
 // The number of times each application should run
 #define RUNCOUNT	320
 
+static inline void
+sys_user2(int c)
+{
+  asm volatile("int %0\n"
+	       : : "i" (INT_SYS_USER2),
+		   "a" (c)
+	       : "cc", "memory");
+}
+
 
 /*****************************************************************************
  * sys_yield

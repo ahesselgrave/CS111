@@ -34,10 +34,8 @@ start(void)
 	int i;
 
 	for (i = 0; i < RUNCOUNT; i++) {
-		// Write characters to the console, yielding after each one.
-		*cursorpos++ = PRINTCHAR;
-		sys_yield();
+	  sys_user2(PRINTCHAR);
+	  sys_yield();
 	}
-
 	sys_exit(1);
 }
