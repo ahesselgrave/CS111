@@ -552,8 +552,17 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 static uint32_t
 allocate_block(void)
 {
-	/* EXERCISE: Your code here */
-	return 0;
+  /* EXERCISE: Your code here */
+  void *bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
+  int i;
+  for ( i = 2; i < ospfs_super->os_nblocks;i++){
+    //block in bitmap is marked as free (== 1)
+    if (bitvector_test(bitmap,i) == 1){
+      bitvector_clear(bitmap,i);
+      return i;
+    }
+  }
+      return 0;
 }
 
 
@@ -572,6 +581,12 @@ static void
 free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
+  void *bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
+  //if ( blockno <= 0 || blockno == 1 || blockno == 2 || blockno == 3){
+    //fix this - make an error!
+    //error();
+  //} 
+  bitvector_set(bitmap,blockno);
 }
 
 
@@ -608,7 +623,12 @@ static int32_t
 indir2_index(uint32_t b)
 {
 	// Your code here.
-	return -1;
+  //if b > number of direct blocks + number of indirect blocks
+  //then need doubly indirect block
+  if (b >= OSPFS_NDIRECT+ OSPFS_NINDIRECT){
+    return 0;
+  }
+  return -1;
 }
 
 
@@ -626,8 +646,16 @@ indir2_index(uint32_t b)
 static int32_t
 indir_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  //your code here
+  if (b < OSPFS_NDIRECT){
+    return -1;
+  }
+  //within first indirect block
+  if (b < OSPFS_NDIRECT+OSPFS_NINDIRECT){
+    return 0;
+  }
+  //return offset of relevant indirect block within doubly indirect block
+  return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT))/OSPFS_NINDIRECT;
 }
 
 
@@ -644,7 +672,16 @@ static int32_t
 direct_index(uint32_t b)
 {
 	// Your code here.
-	return -1;
+  //if within direct block
+  if (b < OSPFS_NDIRECT){
+    return b;
+  }
+  //if within first indirect block
+  if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT){
+    return b-OSPFS_NDIRECT;
+  }
+  //outside of first indirect block
+  return (b-OSPFS_NDIRECT) % OSPFS_INDIRECT;
 }
 
 
