@@ -681,7 +681,7 @@ direct_index(uint32_t b)
     return b-OSPFS_NDIRECT;
   }
   //outside of first indirect block
-  return (b-OSPFS_NDIRECT) % OSPFS_INDIRECT;
+  return (b-OSPFS_NDIRECT) % OSPFS_NINDIRECT;
 }
 
 
@@ -726,7 +726,94 @@ add_block(ospfs_inode_t *oi)
 	uint32_t *allocated[2] = { 0, 0 };
 
 	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+	//neg blocks in file impossible
+	if (n < 0){
+	  return -EIO;
+	}
+	
+	//allocate new block
+	uint32_t freeBlock = allocate_block();
+	//if no space
+	if (freeBlock == -1){
+	  free_block(freeBlock);
+	  return -ENOSPC;
+	}
+
+	if (n < OSPFS_NDIRECT){
+	  //add as direct block
+	  allocated[0] = freeBlock;
+	  memset(ospfs_block(freeBlock),0,OSPFS_BLKSIZE);
+	  oi->oi_direct[n] = freeBlock;
+	}
+	else if(n< OSPFS_NDIRECT+OSPFS_NINDIRECT){
+	  //add indirect block in doesn't already exist
+	  if (!oi->oi_indirect){
+	    allocated[0] = freeBlock;
+	    memset(ospfs_block(freeBlock),0,OSPFS_BLKSIZE);
+	    oi->oi_indirect =freeBlock;
+	  }
+	  //add direct block within indirect block
+	  uint32_t newBlock = allocate_block();
+	  if (!newBlock){
+	    //if fail to allocate new block, need to delete indirect block
+	    //if just created
+	    if (allocated[0]){
+	      free_block(allocated[0]);
+	      oi->oi_indirect = 0;
+	    }
+	    return -ENOSPC;
+	  }
+	  memset(ospfs_block(newBlock),0,OSPFS_BLKSIZE);
+	  //load indirect block from "disk" and put new block in correct pos
+	  ((uint32_t*)ospfs_block(oi->oi_indirect))[direct_index(n)]=newBlock;
+	}
+	else if (n < OSPFS_MAXFILEBLKS){
+	  //try to add as doubly indirect
+	  if (!oi->oi_indirect2){
+	    allocated[0] = freeBlock;
+	    memset(ospfs_block(freeBlock),0,OSPFS_BLKSIZE);
+	    oi->oi_indirect2 = freeBlock;
+	  }
+	  uint32_t indirectBlk = ((uint32_t *)ospfs_block(oi->oi_indirect2))[indir_index(n)];
+
+	  if (!indirectBlk){
+	    //allocate new indirect block
+	    uint32_t newIndirect = allocate_block();
+	    if (newIndirect == -1){
+	      //if fail, must remove possible new doubly indirect block
+	      if (allocated[0]){
+		free_block(allocated[0]);
+		oi->oi_indirect2 = 0;
+	      }
+	      return -ENOSPC;
+	    }
+	    allocated[1] = newIndirect;
+	    memset(ospfs(newIndirect),0,OSPFS_BLKSIZE);
+	  }
+	  uint32_t direct = allocate_block();
+	  //add direct block within indirect block
+	  if (direct == -1){
+	    //if no more space, must free any newly allocated blocks that
+	    //didn't end up using
+	    if (allocated[1]){
+	      if (allocated[0]){
+		free_block(allocated[0]);
+		oi->oi_indirect2 = 0;
+	      }
+	      free_block(allocated[1]);
+	      oi->oi_indirect=0;
+	    }
+	    return -ENOSPC;
+	  }
+	  memset(ospfs_block(direct),0,OSPFS_BLKSIZE);
+	  ((uint32_t *)ospfs_block(indirectBlk))[direct_index(n)]=direct;
+	}
+	else{
+	  //no more space on disk
+	  return -ENOSPC;
+	}
+	oi->oi_size+=OSPFS_BLKSIZE;
+	return 0;
 }
 
 
