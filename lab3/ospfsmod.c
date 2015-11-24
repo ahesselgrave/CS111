@@ -828,7 +828,7 @@ add_block(ospfs_inode_t *oi)
 //          should be set to the maximum file size that could
 //          fit in oi's blocks.  If the function returns -EIO (for
 //          instance if an indirect block that should be there isn't),
-//          then oi->oi_size should remain unchanged.
+//          then oi->oi_size should remai n unchanged.
 //
 // EXERCISE: Finish off this function.
 //
@@ -846,7 +846,53 @@ remove_block(ospfs_inode_t *oi)
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
 
 	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+	if (n < 0){
+	  return -EIO;
+	}
+	//file empty
+	if (n == 0){
+	  return 0;
+	}
+	//if only in direct block
+	//n-1 because start with 0 index
+	if (n < OSPFS_NDIRECT){
+	  free_block(oi->oi_direct[n-1]);
+	  oi->oi_direct[n-1] = 0;
+	}
+	//if in indirect block
+	if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT){
+	  uint32_t* indirectBlock = (uint32_t *)ospfs_block(oi->oi_indirect);
+	  free_block(indirectBlock[direct_index(n-1)]);
+	  indirectBlock[direct_index(n-1)] = 0;
+	  //nothing in indirect block, so free
+	  if (direct_index(n-1) == 0){
+	    free_block(oi->oi_indirect);
+	    oi->oi_indirect = 0;
+	  }
+	}
+	//doubly indirect block
+	else if (n < OSPFS_MAXFILEBLKS){
+	  uint32_t* doubleIndirect = (uint32_t *)ospfs_block(oi->oi_indirect2);
+	  uint32_t* indirect = (uint32_t *)ospfs_block(doubleIndirect[indir_index(n-1)]);
+	  //free block in indirect block
+	  free_block(indirect[direct_index(n-1)]);
+	  indirect[direct_index(n-1)] = 0;
+	  //see if indirect block empty
+	  if (direct_index(n-1) == 0){
+	    free_block(doubleIndirect[indir_index(n-1)]);
+	    doubleIndirect[indir_index(n-1)] = 0;
+	  }
+	  //if no indirect blocks in doubly indirect block
+	  if(indir_index(n-1) == 0){
+	    free_block(oi->oi_indirect2);
+	    oi->oi_indirect2 = 0;
+	  }
+	}
+	else{
+	  return -EIO;
+	}
+	oi->oi_size -= OSPFS_BLKSIZE;
+	return 0;
 }
 
 
@@ -891,19 +937,39 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 {
 	uint32_t old_size = oi->oi_size;
 	int r = 0;
-
+	int status;
+	//grow in size
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
-		return -EIO; // Replace this line
+	  status = add_block(oi);
+	  //some type of error
+	  if (status < 0){
+	    break;
+	  }
 	}
-	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
-	        /* EXERCISE: Your code here */
-		return -EIO; // Replace this line
+	if (status == -EIO){
+	  return -EIO;
+	}
+	if (status == -ENOSPC){
+	  //shrink back to original size
+	  while (ospfs_size2nblocks(oi->oi_size)> ospfs_size2nblocks(new_size)){
+	    status=remove_block(oi);
+	  }
+	  oi->oi_size = old_size;
+	  return -ENOSPC;
 	}
 
-	/* EXERCISE: Make sure you update necessary file meta data
-	             and return the proper value. */
-	return -EIO; // Replace this line
+	//shrink in size
+	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
+	  /* EXERCISE: Your code here */
+	  remove_block(oi);
+	  //encounter error - most likely -EIO
+	  if (status < 0){
+	    return status;
+	  }
+	}
+	oi->oi_size = new_size;
+	return 0; 
 }
 
 
