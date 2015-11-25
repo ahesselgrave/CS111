@@ -1312,9 +1312,51 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+	ospfs_inode_t *inode;
 	/* EXERCISE: Your code here. */
-	return -EINVAL; // Replace this line
 
+	//if name too long
+	if (dentry->d_name.len > OSPFS_MAXNAMELEN){
+	  return -ENAMETOOLONG;
+	}
+
+	//file already exists in directory
+	if (find_direntry(ospfs_inode(dir->i_ino),dentry->d_name.name,dentry->d_name.len) != NULL){
+	  return -EEXIST;
+	}
+
+	//create blank directory entry
+	ospfs_direntry_t * newEntry = create_blank_direntry(dir_oi);
+
+	//if creating entry resulted in error
+	if (IS_ERR(newEntry)){
+	  return PTR_ERR(newEntry);
+	}
+	
+	ospfs_inode_t *emptyInode;
+	//find empty inode, set entry_ino var to inode number
+	for (entry_ino =0; entry_ino < ospfs_super->os_ninodes; entry_ino++)        {
+	  emptyInode = ospfs_inode(entry_ino);
+	  if (emptyInode == NULL){
+	    break;
+	  }
+	}
+	//no empty inode
+	if (entry_ino == ospfs_super->os_ninodes){
+	  return -ENOSPC;
+	}
+	
+	//initialize directory entry
+	newEntry->od_ino = entry_ino;
+	memcpy(newEntry,dentry->d_name.name,dentry->d_name.len);
+	newEntry->od_name[dentry->d_name.len] = '\0';
+	
+	//initialize inode
+	emptyInode->oi_size = 0;
+	emptyInode->oi_ftype = OSPFS_FTYPE_REG;
+	emptyInode->oi_nlink = 1;
+	emptyInode->oi_mode = mode;
+	
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
 	   getting here. */
