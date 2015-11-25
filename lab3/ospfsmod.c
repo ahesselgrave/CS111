@@ -1,7 +1,7 @@
 #include <linux/autoconf.h>
 #include <linux/version.h>
 #ifndef EXPORT_SYMTAB
-# define EXPORT_SYMTAB
+#define EXPORT_SYMTAB
 #endif
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -1198,7 +1198,27 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	//    entries and return one of them.
 
 	/* EXERCISE: Your code here. */
-	return ERR_PTR(-EINVAL); // Replace this line
+
+  //look to see if empty entry available
+	int off;
+	for (off = 0; off < dir_oi->oi_size; off += OSPFS_DIRENTRY_SIZE) {
+	  ospfs_direntry_t *od = ospfs_inode_data(dir_oi, off);
+	  if (od->od_ino == 0){
+	    return od;
+	  }
+	}
+	//create new entry
+	int val;
+	val = add_block(dir_oi);
+	//successfully added a new block
+	if (val == 0){
+	  ospfs_direntry_t *od = ospfs_inode_data(dir_oi,off);
+	  return od;
+	}
+	//return pointer of error value
+	else{
+	  return ERR_PTR(val);
+	}
 }
 
 // ospfs_link(src_dentry, dir, dst_dentry
@@ -1232,8 +1252,30 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
-	/* EXERCISE: Your code here. */
-	return -EINVAL;
+	/* EXERCISE: Your code here.*/
+  //if name too long
+  if (dst_dentry->d_name.len > OSPFS_MAXNAMELEN){
+    return -ENAMETOOLONG;
+  }
+  //file already exists in directory
+  if (find_direntry(ospfs_inode(dir->i_ino),dst_dentry->d_name.name,dst_dentry->d_name.len) != NULL){
+    return -EEXIST;
+  }
+  //try to create hard link to src(actual file link to) 
+  ospfs_direntry_t* hardLink = create_blank_directory(ospfs_inode(dir->i_ino));
+  //if there was an error creating new directory
+  if (IS_ERR(hardLink)){
+    //returns error value for error pointer
+    return PTR_ERR(hardLink);
+  }
+  //pass inode number to new blank directory
+  hardLink->od_ino = src_dentry->d_inode->i_ino;
+  //memcpy, destination = new blank directory (hardLink)
+  memcpy(hardLink->od_name,dst_dentry->d_name.name,dst_dentry->d_name.len);
+  hardLink->od_name[dst_dentry->d_name.len]='\0';
+  //increment number of links to src file
+  ospfs_inode(src_dentry->d_inode->i_ino)->oi_nlink++;
+  return 0;
 }
 
 // ospfs_create
