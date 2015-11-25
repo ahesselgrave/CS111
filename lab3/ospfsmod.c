@@ -788,7 +788,7 @@ add_block(ospfs_inode_t *oi)
 	      return -ENOSPC;
 	    }
 	    allocated[1] = newIndirect;
-	    memset(ospfs(newIndirect),0,OSPFS_BLKSIZE);
+	    memset(ospfs_block(newIndirect),0,OSPFS_BLKSIZE);
 	  }
 	  uint32_t direct = allocate_block();
 	  //add direct block within indirect block
@@ -962,7 +962,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	//shrink in size
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	  /* EXERCISE: Your code here */
-	  remove_block(oi);
+	  status = remove_block(oi);
 	  //encounter error - most likely -EIO
 	  if (status < 0){
 	    return status;
@@ -1028,6 +1028,7 @@ ospfs_notify_change(struct dentry *dentry, struct iattr *attr)
 static ssize_t
 ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 {
+  eprintk("Filp memory address: %u\n", filp);
 	ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
 	int retval = 0;
 	size_t amount = 0;
@@ -1037,13 +1038,23 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	/* EXERCISE: Your code here */
 
 	// Check file size from inode oi
+	eprintk("Filesize is %d\n", oi->oi_size);
+	eprintk("f_pos is %d\n", *f_pos);
 	eprintk("Count was %d\n", count);
-	count = oi->oi_size < count ? oi->oi_size : count;
+	// Check if offset exceeds filesize
+	uint32_t file_size = oi->oi_size;
+	if (count + *f_pos > file_size)
+	  //Truncate count to the remaining bytes after the offset
+	  count = file_size - *f_pos;
 	eprintk("Count is %d\n", count);
+
+
 
 	// Copy the data to user block by block
 	while (amount < count && retval >= 0) {
+	        eprintk("Getting blockno, fpos is %d\n", *f_pos);
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
+		eprintk("Got blockno %d\n", blockno);
 		uint32_t n;
 		char *data;
 
@@ -1082,7 +1093,8 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 
 		eprintk("n is %d\n", n);
 		// Copy n bytes over to buffer
-		if(copy_to_user(buffer, data+offset, n)) {
+		if(copy_to_user(buffer, data, n)) {
+		  eprintk("error in copying data\n");
 		  retval = -EFAULT;
 		  goto done;
 		}
@@ -1091,10 +1103,13 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		buffer += n;
 		amount += n;
 		*f_pos += n;
+		eprintk("retval is %d\n", retval);
 	}
 
     done:
-	return (retval >= 0 ? amount : retval);
+	retval = (retval >= 0 ? amount : retval);
+	eprintk("Returning %d\n\n", retval);
+	return retval;
 }
 
 
@@ -1128,7 +1143,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
-	/* EXERCISE: Your code here */
+	/* EXERCISE: Your code here */	
 
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -1292,7 +1307,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
     return -EEXIST;
   }
   //try to create hard link to src(actual file link to) 
-  ospfs_direntry_t* hardLink = create_blank_directory(ospfs_inode(dir->i_ino));
+  ospfs_direntry_t* hardLink = create_blank_direntry(ospfs_inode(dir->i_ino));
   //if there was an error creating new directory
   if (IS_ERR(hardLink)){
     //returns error value for error pointer
