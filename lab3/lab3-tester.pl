@@ -7,15 +7,15 @@ close FOO;
 
 @tests = (
     # test reading
-    #1
+    #1 PASSED
     [ 'diff base/hello.txt test/hello.txt >/dev/null 2>&1 && echo $?',
       "0"
     ],
-    #2
+    #2 PASSED
     [ 'cmp base/pokercats.gif test/pokercats.gif >/dev/null 2>&1 && echo $?',
       "0"
     ],
-    #3    
+    #3 PASSED
     [ 'ls -l test/pokercats.gif | awk "{ print \$5 }"',
       "91308"
     ],
@@ -23,41 +23,41 @@ close FOO;
     # test writing
     # We use dd to write because it doesn't initially truncate, and it can
     # be told to seek forward to a particular point in the disk.
-    #4
+    #4 PASSED
     [ "echo Bybye | dd bs=1 count=5 of=test/hello.txt conv=notrunc >/dev/null 2>&1 ; cat test/hello.txt",
       "Bybye, world!"
     ],
-    #5
+    #5 PASSED
     [ "echo Hello | dd bs=1 count=5 of=test/hello.txt conv=notrunc >/dev/null 2>&1 ; cat test/hello.txt",
       "Hello, world!"
     ],
-    #6
+    #6 PASSED
     [ "echo gi | dd bs=1 count=2 seek=7 of=test/hello.txt conv=notrunc >/dev/null 2>&1 ; cat test/hello.txt",
       "Hello, girld!"
     ],
-    #7
+    #7 PASSED
     [ "echo worlds galore | dd bs=1 count=13 seek=7 of=test/hello.txt conv=notrunc >/dev/null 2>&1 ; cat test/hello.txt",
       "Hello, worlds galore"
     ],
-    #8
+    #8 FAILED!!!!
     [ "echo 'Hello, world!' > test/hello.txt ; cat test/hello.txt",
       "Hello, world!"
     ],
     
     # create a file
-    #9
+    #9 PASSED
     [ 'touch test/file1 && echo $?',
       "0"
     ],
 
     # read directory
-    #10
+    #10 PASSED
     [ 'touch test/dir-contents.txt ; ls test | tee test/dir-contents.txt | grep file1',
       'file1'
     ],
 
     # write files, remove them, then read dir again
-    #11
+    #11 FAILED!!!!
     [ 'ls test | dd bs=1 of=test/dir-contents.txt >/dev/null 2>&1; ' .
       ' touch test/foo test/bar test/baz && '.
       ' rm    test/foo test/bar test/baz && '.
@@ -66,38 +66,38 @@ close FOO;
     ],
 
     # remove the last file
-    #12
+    #12 PASSED
     [ 'rm -f test/dir-contents.txt && ls test | grep dir-contents.txt',
       ''
     ],
 
 
     # write to a file
-    #13
+    #13 PASSED
     [ 'echo hello > test/file1 && cat test/file1',
       'hello'
     ],
     
     # append to a file
-    #14
+    #14 FAILED!!!!
     [ 'echo hello > test/file1 ; echo goodbye >> test/file1 && cat test/file1',
       'hello goodbye'
     ],
 
     # delete a file
-    #15
+    #15 PASSED
     [ 'rm -f test/file1 && ls test | grep file1',
       ''
     ],
 
     # make a larger file for indirect blocks
-    #16
+    #16 FAILED!!!!
     [ 'yes | head -n 5632 > test/yes.txt && ls -l test/yes.txt | awk \'{ print $5 }\'',
       '11264'
     ],
    
     # truncate the large file
-    #17
+    #17 PASSED
     [ 'echo truncernated11 > test/yes.txt | ls -l test/yes.txt | awk \'{ print $5 }\' ; rm test/yes.txt',
       '15'
     ],
