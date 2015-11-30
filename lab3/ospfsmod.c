@@ -589,8 +589,8 @@ allocate_block(void)
     int i;
     for ( i = 0; i < ospfs_super->os_nblocks;i++){
 	//block in bitmap is marked as free (== 1)
-	if (bitvector_test(bitmap,i) == 1){
-	    bitvector_clear(bitmap,i);
+      if (bitvector_test(bitmap,i) == 1){
+	bitvector_clear(bitmap,i);
 	    return i;
 	}
     }
@@ -839,6 +839,7 @@ add_block(ospfs_inode_t *oi)
 	    }
 	    if (allocated[1]){
 		free_block(allocated[1]);
+		oi->oi_indirect = 0;
 	    }
 	    return -ENOSPC;
 	}
@@ -852,6 +853,7 @@ add_block(ospfs_inode_t *oi)
     oi->oi_size+=OSPFS_BLKSIZE;
     return 0;
 }
+
 
 
 // remove_block(ospfs_inode_t *oi)
@@ -1011,7 +1013,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	}
     }
     oi->oi_size = new_size;
-    return 0; 
+    return 0;
 }
 
 
@@ -1196,7 +1198,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
     	}
     }
     eprintk("Filesize is now %d\n", oi->oi_size);
-  // Copy data block by block 
+  // Copy data block by block
   while (amount < count && retval >= 0) {
 	uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
 	uint32_t n;
@@ -1247,6 +1249,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
  done:
     return (retval >= 0 ? amount : retval);
 }
+
+
 
 
 
@@ -1308,40 +1312,71 @@ find_direntry(ospfs_inode_t *dir_oi, const char *name, int namelen)
 //
 // EXERCISE: Write this function.
 
+/* static ospfs_direntry_t * */
+/* create_blank_direntry(ospfs_inode_t *dir_oi) */
+/* { */
+/*     eprintk("In create_blank_direntry\n"); */
+/*     // Outline: */
+/*     // 1. Check the existing directory data for an empty entry.  Return one */
+/*     //    if you find it. */
+/*     // 2. If there's no empty entries, add a block to the directory. */
+/*     //    Use ERR_PTR if this fails; otherwise, clear out all the directory */
+/*     //    entries and return one of them. */
+
+/*     /\* EXERCISE: Your code here. *\/ */
+
+/*     //look to see if empty entry available */
+/*     int off; */
+/*     ospfs_direntry_t *od; */
+
+/*     for (off = 0; off < dir_oi->oi_size; off += OSPFS_DIRENTRY_SIZE) { */
+/* 	od = ospfs_inode_data(dir_oi, off); */
+/* 	if (od->od_ino == 0){ */
+/* 	    return od; */
+/* 	} */
+/*     } */
+/*     //create new entry */
+/*     int val; */
+/*     val = add_block(dir_oi); */
+/*     if (val < 0) */
+/* 	return ERR_PTR(val); */
+/*     else { */
+/* 	od = ospfs_inode_data(dir_oi, off); */
+/* 	return od; */
+/*     } */
+
+/* } */
+
 static ospfs_direntry_t *
 create_blank_direntry(ospfs_inode_t *dir_oi)
 {
-    eprintk("In create_blank_direntry\n");
-    // Outline:
-    // 1. Check the existing directory data for an empty entry.  Return one
-    //    if you find it.
-    // 2. If there's no empty entries, add a block to the directory.
-    //    Use ERR_PTR if this fails; otherwise, clear out all the directory
-    //    entries and return one of them.
+	// Outline:
+	// 1. Check the existing directory data for an empty entry.  Return one
+	//    if you find it.
+	// 2. If there's no empty entries, add a block to the directory.
+	//    Use ERR_PTR if this fails; otherwise, clear out all the directory
+	//    entries and return one of them.
 
-    /* EXERCISE: Your code here. */
+	ospfs_direntry_t *dir_entry;
+	int retval;
 
-    //look to see if empty entry available
-    int off;
-    ospfs_direntry_t *od;
-
-    for (off = 0; off < dir_oi->oi_size; off += OSPFS_DIRENTRY_SIZE) {
-	od = ospfs_inode_data(dir_oi, off);
-	if (od->od_ino == 0){
-	    return od;
+	// look for empty entry
+	uint32_t offset;
+	for (offset = 0; offset < dir_oi->oi_size; offset += OSPFS_DIRENTRY_SIZE) {
+		dir_entry = ospfs_inode_data(dir_oi, offset);
+		if (dir_entry->od_ino == 0)
+			return dir_entry;
 	}
-    }
-    //create new entry
-    int val;
-    val = add_block(dir_oi);
-    if (val < 0)
-	return ERR_PTR(val);
-    else {
-	od = ospfs_inode_data(dir_oi, off);
-	return od;
-    }
 
+	// no empty entry, add block (will be added at offset = current oi_size)
+	retval = add_block(dir_oi);
+	if (retval < 0)
+		return ERR_PTR(retval);
+
+	dir_entry = ospfs_inode_data(dir_oi, offset);
+	return dir_entry;
 }
+
 
 // ospfs_link(src_dentry, dir, dst_dentry
 //   Linux calls this function to create hard links.
