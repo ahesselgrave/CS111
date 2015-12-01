@@ -1,0 +1,46 @@
+# Fill in your name, student ID, and email address in this file.
+# If you are working in a team, fill out the information for both team 
+# members.
+
+# SUBMIT THE LAB ONLY ONCE (from only one partner). This file will be
+# automatically parsed in order to give both team members credit for the
+# lab.
+
+# You need to fill in the EXERCISE sections describing your solutions
+# for Tasks 1, 2, and 3, as well as write the corresponding code.
+# If you did one or more extra credit problems, indicate which one in the
+# appropriate section below (remove the # sign first). If you have any other
+# information you'd like us to know, please add it at the end of the file.
+
+# Partner 1
+Name: Alex Hesselgrave
+Student ID: 904273474
+Email: ahesselgrave@ucla.edu
+
+# Partner 2 (if you're working in a team)
+Name: Kristen Chui
+Student ID: 104289172
+Email: kwchui@g.ucla.edu
+
+# EXERCISE 1: What method you used to make your peer download and upload
+#    files in parallel?  (~1-3 sentences)
+
+# EXERCISE 2A: What conditions did you find and fix that would have
+#    triggered a buffer overrun bug?  (~1-3 sentences each)
+- in start_download- if filename too long , and try to write --> buffer overrun
+  - use if statement to check length of file name
+  - other option is using strncpy(t->filename, filename,n) but then won't work if truncate filename
+  - also issue in osp2p_writef(..) if filename too long, can take forever to write message; can even attack tracker if tacker doesn't check
+
+- in register_file() - osp2p_writef() - send HAVE sring to tracker, if too long can overflow tracker
+
+- in task_downlaod : strcpy(t->disk_filename, t->filename) issue if t->filename very large (use same trick as before)
+
+# EXERCISE 2B: What other robustness problems did you fix?  (~1-3 sentences
+#    each)
+- make sure others don't fill up disk space
+  -set max size of how many can store (if download task lrager than x bytes, stop)
+  - set max time limit for task so if excess, stop because network connection slow
+  - make sure that can't access files outside of test directory
+    - if no limit to filename can pass complete path starting from root directory to access any file
+# Add any other information you'd like us to know below this line.

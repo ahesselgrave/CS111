@@ -419,6 +419,12 @@ static void register_files(task_t *tracker_task, const char *myalias)
 		    || (namelen > 1 && ent->d_name[namelen - 1] == '~'))
 			continue;
 
+		
+		  //EXERCISE 2A:
+	        if (namelen > FILENAMESIZ){
+		  error ("* Filename too long\n");
+		}
+		
 		osp2p_writef(tracker_task->peer_fd, "HAVE %s\n", ent->d_name);
 		messagepos = read_tracker_response(tracker_task);
 		if (tracker_task->buf[messagepos] != '2')
@@ -460,6 +466,12 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 	size_t messagepos;
 	assert(tracker_task->type == TASK_TRACKER);
 
+	//EXCERCISE 2A:
+	if (strlen(filename) > FILENAMESIZ){
+	  error("* Filename requested too long!\n");
+	  goto exit;
+	}
+	
 	message("* Finding peers for '%s'\n", filename);
 
 	osp2p_writef(tracker_task->peer_fd, "WANT %s\n", filename);
@@ -475,7 +487,7 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		goto exit;
 	}
 	strcpy(t->filename, filename);
-
+	
 	// add peers
 	s1 = tracker_task->buf;
 	while ((s2 = memchr(s1, '\n', (tracker_task->buf + messagepos) - s1))) {
@@ -530,8 +542,14 @@ static void task_download(task_t *t, task_t *tracker_task)
 	// "foo.txt~1~".  However, if there are 50 local files, don't download
 	// at all.
 	for (i = 0; i < 50; i++) {
-		if (i == 0)
-			strcpy(t->disk_filename, t->filename);
+	        if (i == 0){
+		  strcpy(t->disk_filename, t->filename);
+		  //EXERCISE 2A:
+		  if(strlen(t->disk_filename) > FILENAMESIZ){
+		    error("* Filename too long!\n");
+		    goto try_again;
+		  }
+		}
 		else
 			sprintf(t->disk_filename, "%s~%d~", t->filename, i);
 		t->disk_fd = open(t->disk_filename,
