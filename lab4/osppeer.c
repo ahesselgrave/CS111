@@ -33,7 +33,7 @@ static int listen_port;
  * a bounded buffer that simplifies reading from and writing to peers.
  */
 
-#define TASKBUFSIZ	4096	// Size of task_t::buf
+#define TASKBUFSIZ	40960	// Size of task_t::buf 4096
 #define FILENAMESIZ	256	// Size of task_t::filename
 
 typedef enum tasktype {		// Which type of connection is this?
@@ -418,12 +418,6 @@ static void register_files(task_t *tracker_task, const char *myalias)
 			    || ent->d_name[namelen - 1] == 'h'))
 		    || (namelen > 1 && ent->d_name[namelen - 1] == '~'))
 			continue;
-
-		
-		  //EXERCISE 2A:
-	        if (namelen > FILENAMESIZ){
-		  error ("* Filename too long\n");
-		}
 		
 		osp2p_writef(tracker_task->peer_fd, "HAVE %s\n", ent->d_name);
 		messagepos = read_tracker_response(tracker_task);
@@ -466,11 +460,11 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 	size_t messagepos;
 	assert(tracker_task->type == TASK_TRACKER);
 
-	//EXCERCISE 2A:
-	if (strlen(filename) > FILENAMESIZ){
+	//EXERCISE 2A ALTERNATIVE SOLUTION INSTEAD OF STRNCPY:
+	/*if (strlen(filename) > FILENAMESIZ){
 	  error("* Filename requested too long!\n");
 	  goto exit;
-	}
+	  }*/
 	
 	message("* Finding peers for '%s'\n", filename);
 
@@ -486,7 +480,11 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		error("* Error while allocating task");
 		goto exit;
 	}
-	strcpy(t->filename, filename);
+
+	//EXERCISE 2A CHANGE
+	//in case truncate, add null terminator
+	strncpy(t->filename, filename, FILENAMESIZ-1);
+	t->filename[FILENAMESIZ-1] = '\0';
 	
 	// add peers
 	s1 = tracker_task->buf;
@@ -516,6 +514,13 @@ static void task_download(task_t *t, task_t *tracker_task)
 	assert((!t || t->type == TASK_DOWNLOAD)
 	       && tracker_task->type == TASK_TRACKER);
 
+	//EXERCISE 2A: Check file name size           
+	if(strlen(t->disk_filename) > FILENAMESIZ){
+	  error("* Filename too long!\n");
+	  goto try_again;
+	}
+
+	
 	// Quit if no peers, and skip this peer
 	if (!t || !t->peer_list) {
 		error("* No peers are willing to serve '%s'\n",
@@ -543,12 +548,9 @@ static void task_download(task_t *t, task_t *tracker_task)
 	// at all.
 	for (i = 0; i < 50; i++) {
 	        if (i == 0){
-		  strcpy(t->disk_filename, t->filename);
-		  //EXERCISE 2A:
-		  if(strlen(t->disk_filename) > FILENAMESIZ){
-		    error("* Filename too long!\n");
-		    goto try_again;
-		  }
+		  //EXERCISE 2A CHANGE
+		  strncpy(t->disk_filename, t->filename, FILENAMESIZ-1);
+		  t->disk_filename[FILENAMESIZ-1] = '\0';		  
 		}
 		else
 			sprintf(t->disk_filename, "%s~%d~", t->filename, i);
@@ -656,6 +658,29 @@ static void task_upload(task_t *t)
 		} else if (ret == TBUF_END
 			   || (t->tail && t->buf[t->tail-1] == '\n'))
 			break;
+	}
+
+
+	//EXERCISE 2B: check that in current directory
+	char currentDir[PATH_MAX];
+	char realPath[PATH_MAX];
+	if (getcwd(currentDir, PATH_MAX) == NULL){
+	  //currentDir longer than PATH_MAX
+	  error("* Current Working Directory longer than max size\n");
+	  goto exit;
+	}
+
+	if(realpath(t->filename, realPath) == NULL){
+	  //encounter error when expanding symbolic links or resolving references
+	  error("* Issue with absolute path name\n");
+	  goto exit;
+	}
+
+	//if both currentDir and realPath are not null, compare to see if
+	//currentDir is equal to directory realPath ends on
+	if (strncmp(currentDir, realPath, strlen(currentDir)) != 0 ){
+	  error("* File that trying to access not in current directory!\n");
+	  goto exit;
 	}
 
 	assert(t->head == 0);
