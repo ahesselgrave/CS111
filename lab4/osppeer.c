@@ -33,7 +33,7 @@ static int listen_port;
  * a bounded buffer that simplifies reading from and writing to peers.
  */
 
-#define TASKBUFSIZ	40960	// Size of task_t::buf 4096
+#define TASKBUFSIZ	40960	// Size of task_t::buf Originally: 4096
 #define FILENAMESIZ	256	// Size of task_t::filename
 
 typedef enum tasktype {		// Which type of connection is this?
@@ -258,6 +258,15 @@ int open_socket(struct in_addr addr, int port)
  * peers.  They generally use and return 'task_t' objects, which are defined
  * at the top of this file.
  */
+
+//EXERCISE 2B
+//Limit ability to fill up disk space by setting max file size
+#define MAXFILESIZE 2147483648 //2^31
+//Set minimum transfer speed
+#define MIN_TRANS_SPEED 64
+//# of samples to collect to calculate average transfer speed
+#define SAMPLE_SIZE 10
+
 
 // read_tracker_response(t)
 //	Reads an RPC response from the tracker using read_to_taskbuf().
@@ -519,7 +528,6 @@ static void task_download(task_t *t, task_t *tracker_task)
 	  error("* Filename too long!\n");
 	  goto try_again;
 	}
-
 	
 	// Quit if no peers, and skip this peer
 	if (!t || !t->peer_list) {
@@ -570,6 +578,20 @@ static void task_download(task_t *t, task_t *tracker_task)
 		task_free(t);
 		return;
 	}
+	
+	//EXERICSE 2B: set up array to capture sample transfer speeds
+	int k = 0;
+	int speedSamples[SAMPLE_SIZE];
+	for (k = 0; k < SAMPLE_SIZE; k++){
+	  //initialize with 10* MIN_TRANS_SPEED bc can have small file
+	  // that transfers slowy but finishes quickly because small
+	  // this way, when calculate average, still "fast enough"
+	  // so can continue download and not switch
+	  speedSamples[k] = 10 * MIN_TRANS_SPEED; 
+	}
+	int avgSpeed = 0; //average speed of transfer
+	int currentSample = 0; //current sample calculating, index in speedSample array
+	int sizeOfLastBuffRead = 0; //stores size of last buffer read
 
 	// Read the file into the task buffer from the peer,
 	// and write it from the task buffer onto disk.
@@ -586,6 +608,36 @@ static void task_download(task_t *t, task_t *tracker_task)
 		if (ret == TBUF_ERROR) {
 			error("* Disk write error");
 			goto try_again;
+		}
+		//EXERCISE 2B: prevent filling up of disk space
+		if (t->total_written > MAXFILESIZE){
+		  error("* File trying to download too big\n");
+		  goto try_again;
+		}
+
+		//EXERCISE 2B: calculate transfer speed
+		//increment position in array, make sure will go back to
+		//position 0 if at end of array
+		if (currentSample == 9){
+		  currentSample = 0;
+		}
+		else{
+		  currentSample+=1;
+		}
+		//calculate num of bytes written 
+		speedSamples[currentSample] = t->total_written - sizeOfLastBuffRead;
+		//update num to bytes read to total written so far	    
+		sizeOfLastBuffRead = t->total_written;
+		avgSpeed = 0;
+		//sum up all speeds and divide by sample size to get average
+		for (k = 0 ; k < SAMPLE_SIZE; k++){
+		  avgSpeed += speedSamples[k];
+		}
+		avgSpeed = avgSpeed / SAMPLE_SIZE;
+		//if average speed less than min transfer speed, switch to another peer
+		if (avgSpeed < MIN_TRANS_SPEED){
+		  error("* Transfer speed too slow, trying another peer\n");
+		  goto try_again;
 		}
 	}
 
