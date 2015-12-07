@@ -622,6 +622,13 @@ static task_t *task_listen(task_t *listen_task)
 
 	t = task_new(TASK_UPLOAD);
 	t->peer_fd = fd;
+
+	if(!t->peer_list)
+	    t->peer_list = malloc(sizeof(peer_t));
+	t->peer_list->port = peer_addr.sin_port;
+	t->peer_list->next = NULL;
+	   
+	
 	return t;
 }
 
@@ -695,9 +702,10 @@ check_permissions(char *perm_file, char *req_file, peer_t *peer_list)
 
 		// Check peer port range
 		while (peer_list) {
-		    if (!(peer_list->port >= port1 && peer_list->port <= port2)) {
+		    if (peer_list->port >= port1 && peer_list->port <= port2) {
 			return 0;
 		    }
+		    peer_list = peer_list->next;
 		}
 		
 		break;
@@ -745,7 +753,7 @@ static void task_upload(task_t *t)
 	// Generate peer whitelist and blacklist
 	peer_t *whitelist, *blacklist;
 	if (check_permissions("osp2paccess", t->filename, t->peer_list) != 1) {
-	    message("* You do not have permission to access this file\n");
+	    osp2p_writef(t->peer_fd, "You do not have permission to access this file.\n");
 	    exit(-1);
 	}
 	
