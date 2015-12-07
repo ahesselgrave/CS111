@@ -1,4 +1,4 @@
- // -*- mode: c++ -*-
+// -*- mode: c++ -*-
 #define _BSD_EXTENSION
 #include <stdlib.h>
 #include <string.h>
@@ -663,8 +663,9 @@ check_permissions(char *perm_file, char *req_file, peer_t *peer_list)
     req_file;
     
     // Read line by line in the permission file
-    perm_fp = fopen("./osp2paccess", "r");
-    if (!perm_fp) {
+    errno = 0;
+    perm_fp = fopen("/u/cs/ugrad/hesselgr/CS111/lab4/osp2paccess", "r");
+    if (perm_fp == NULL) {
 	perror("Error opening permission file");
 	exit(-1);
     }
@@ -677,8 +678,9 @@ check_permissions(char *perm_file, char *req_file, peer_t *peer_list)
 	    case 'b': {
 		char *token = NULL;
 		int i = 0;
-		
-		while ((token = strtok(line, " ")) != NULL) {
+
+		token = strtok(line, " ");
+		while (token != NULL) {
 		    if (strcmp(token, "blacklist") == 0) {
 			;
 		    }
@@ -686,7 +688,8 @@ check_permissions(char *perm_file, char *req_file, peer_t *peer_list)
 			port1 = (int) strtol(token, NULL, 10);
 		    else if (i == 2) 
 			port2 = (int) strtol(token, NULL, 10);
-		    
+
+		    token = strtok(NULL, " ");
 		    i += 1;
 		}
 
