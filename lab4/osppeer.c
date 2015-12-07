@@ -1,4 +1,4 @@
-// -*- mode: c++ -*-
+ // -*- mode: c++ -*-
 #define _BSD_EXTENSION
 #include <stdlib.h>
 #include <string.h>
@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -20,8 +21,10 @@
 #include <pwd.h>
 #include <time.h>
 #include <limits.h>
+
 #include "md5.h"
 #include "osp2p.h"
+
 
 static struct in_addr listen_addr;	// Define listening endpoint
 static int listen_port;
@@ -75,6 +78,7 @@ typedef struct task {
 
 // task_new(type)
 //	Create and return a new task of type 'type'.
+
 //	If memory runs out, returns NULL.
 static task_t *task_new(tasktype_t type)
 {
@@ -621,6 +625,90 @@ static task_t *task_listen(task_t *listen_task)
 	return t;
 }
 
+// check_permissions(permissions_file, requested_file, peer_list)
+// 	Checks the rules in the permission file
+//      Requesting peer must be in the peer list. Checks if peer is whitelisted,
+//      and if so checks if peer has access to requested file.
+//      Returns 1 on success, 0 otherwise
+//      Returns -1 on I/O error
+static int
+check_permissions(char *perm_file, char *req_file, peer_t *peer_list)
+{
+    /* 
+       PERMISSION FILE FORMAT
+       The permission file format behaves similarly to a host file syntax.
+       It supports whitelisting and blacklisting of peers
+
+       BLACKLIST FORMAT:
+       blacklist port1 port2
+      
+       Ex:
+       blacklist 1 10 will block any connections on any port between 1-10
+
+       WHITELIST FORMAT:
+       whitelist port1 port2
+       
+       Same format as blacklist, but will ONLY allow peers in the port range
+
+
+       EACH LINE CAN ONLY BE 80 CHARACTERS LONG MAX
+    */
+
+    int ret;
+    char *line;
+    FILE *perm_fp, *req_fp;
+    size_t len = 0;
+
+    perm_file;
+    req_file;
+    
+    // Read line by line in the permission file
+    perm_fp = fopen("./osp2paccess", "r");
+    if (!perm_fp) {
+	perror("Error opening permission file");
+	exit(-1);
+    }
+
+    while (getline(&line, &len, perm_fp) != -1) {
+	int port1, port2;
+	switch(line[0])
+	    {
+		//blacklist case
+	    case 'b': {
+		char *token = NULL;
+		int i = 0;
+		
+		while ((token = strtok(line, " ")) != NULL) {
+		    if (strcmp(token, "blacklist") == 0) {
+			;
+		    }
+		    else if (i == 1)
+			port1 = (int) strtol(token, NULL, 10);
+		    else if (i == 2) 
+			port2 = (int) strtol(token, NULL, 10);
+		    
+		    i += 1;
+		}
+
+		// Check peer port range
+		while (peer_list) {
+		    if (!(peer_list->port >= port1 && peer_list->port <= port2)) {
+			return 0;
+		    }
+		}
+		
+		break;
+	    }
+	    //whitelist case
+	    case 'w': {
+		break;
+	    }
+	    default:
+		return 0;
+	    }
+    }
+    return 1;
+}
 
 // task_upload(t)
 //	Handles an upload request from another peer.
@@ -639,7 +727,7 @@ static void task_upload(task_t *t)
 			   || (t->tail && t->buf[t->tail-1] == '\n'))
 			break;
 	}
-
+	
 	assert(t->head == 0);
 	if (osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
 		error("* Odd request %.*s\n", t->tail, t->buf);
@@ -647,6 +735,17 @@ static void task_upload(task_t *t)
 	}
 	t->head = t->tail = 0;
 
+
+	// At this point we have received and processed the request
+	// Need to check access control file in current directory
+
+	// Generate peer whitelist and blacklist
+	peer_t *whitelist, *blacklist;
+	if (check_permissions("osp2paccess", t->filename, t->peer_list) != 1) {
+	    message("* You do not have permission to access this file\n");
+	    exit(-1);
+	}
+	
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
 		error("* Cannot open file %s", t->filename);
@@ -744,13 +843,38 @@ int main(int argc, char *argv[])
 	register_files(tracker_task, myalias);
 
 	// First, download files named on command line.
-	for (; argc > 1; argc--, argv++)
-		if ((t = start_download(tracker_task, argv[1])))
-			task_download(t, tracker_task);
+	for (; argc > 1; argc--, argv++) {
+	    if ((t = start_download(tracker_task, argv[1]))) {
+		// Spawn child processes to download
+		pid_t pid = fork();
+		
+		if (pid < 0)
+		    exit(1);
+		else if (pid == 0) {
+		    task_download(t, tracker_task);
+		    exit(0);
+		}
+		else
+		    waitpid(pid, NULL, WNOHANG);
+	    }
+	}
 
 	// Then accept connections from other peers and upload files to them!
-	while ((t = task_listen(listen_task)))
+	while ((t = task_listen(listen_task))) {
+	    /*
+	    pid_t pid = fork();
+
+	    if (pid < 0)
+		exit(1);
+	    else if (pid == 0) {
 		task_upload(t);
+		exit(0);
+	    }
+	    else
+		waitpid(pid, NULL, WNOHANG);
+	    */
+	    task_upload(t);
+	}
 
 	return 0;
 }
