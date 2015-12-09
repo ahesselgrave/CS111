@@ -11,9 +11,9 @@
 # information you'd like use to know, please add it at the end of the file.
 
 #Partner 1
-Name:
-Student ID:
-Email:
+Name: Alex Hesselgrave
+Student ID: 904273474
+Email: ahesselgrave@ucla.edu
 
 #Partner 2 (if you're working in a team)
 Name: Kristen Chui
@@ -24,4 +24,7 @@ Email: kwchui@g.ucla.edu
 #Extra credit problem: none
 
 #Add any other information you'd like us to know below this line
-
+Test case 11 will toggle between passing and failing.
+It initially will fail when you run ./lab3-tester.pl but afterwards if
+you isolate test 11 with ./lab3-tester.pl, it will switch between passing and failing.
+The other tests are perfectly fine though.

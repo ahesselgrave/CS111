@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -20,8 +21,10 @@
 #include <pwd.h>
 #include <time.h>
 #include <limits.h>
+
 #include "md5.h"
 #include "osp2p.h"
+
 
 static struct in_addr listen_addr;	// Define listening endpoint
 static int listen_port;
@@ -48,6 +51,7 @@ typedef struct peer {		// A peer connection (TASK_DOWNLOAD)
 	struct in_addr addr;	// => Peer's IP address
 	int port;		// => Peer's port number
 	struct peer *next;
+        int whitelisted;        // => Peer is whitelisted. 1 if whitelisted, 0 otherwise
 } peer_t;
 
 typedef struct task {
@@ -75,6 +79,7 @@ typedef struct task {
 
 // task_new(type)
 //	Create and return a new task of type 'type'.
+
 //	If memory runs out, returns NULL.
 static task_t *task_new(tasktype_t type)
 {
@@ -690,9 +695,165 @@ static task_t *task_listen(task_t *listen_task)
 
 	t = task_new(TASK_UPLOAD);
 	t->peer_fd = fd;
+
+	if(!t->peer_list)
+	    t->peer_list = malloc(sizeof(peer_t));
+	t->peer_list->port = peer_addr.sin_port;
+	t->peer_list->next = NULL;
+	t->peer_list->whitelisted = 0;
+	
 	return t;
 }
 
+// check_permissions(permissions_file, requested_file, peer_list)
+// 	Checks the rules in the permission file
+//      Requesting peer must be in the peer list. Checks if peer is whitelisted,
+//      and if so checks if peer has access to requested file.
+//      Returns 1 on success, 0 otherwise
+//      Returns -1 on I/O error
+static int
+check_permissions(char *perm_file, char *req_file, peer_t *peer_list)
+{
+#define EBLACKLISTED 1
+#define ENOTWHITELISTED 2
+#define ERESTRICTEDFILE 3
+    /* 
+       PERMISSION FILE FORMAT
+       The permission file format behaves similarly to a host file syntax.
+       It supports whitelisting and blacklisting of peers
+
+       BLACKLIST FORMAT:
+       blacklist port1 port2
+      
+       Ex:
+       blacklist 1 10 will block any connections on any port between 1-10
+
+       WHITELIST FORMAT:
+       whitelist port1 port2
+       
+       Same format as blacklist, but will ONLY allow peers in the port range
+
+
+       EACH LINE CAN ONLY BE 80 CHARACTERS LONG MAX
+    */
+
+    perm_file;
+    int ret;
+    char *line;
+    FILE *perm_fp;
+    size_t len = 0;
+    peer_t *iter;
+    
+    // Read line by line in the permission file
+    errno = 0;
+    perm_fp = fopen("/u/cs/ugrad/hesselgr/CS111/lab4/osp2paccess", "r");
+    if (perm_fp == NULL) {
+	perror("Error opening permission file");
+	exit(-1);
+    }
+
+    while (getline(&line, &len, perm_fp) != -1) {
+	iter = peer_list;
+	int port1, port2;
+	switch(line[0])
+	    {
+		//blacklist case
+	    case 'b': {
+		char *token = NULL;
+		int i = 0;
+
+		token = strtok(line, " ");
+		while (token != NULL) {
+		    if (strcmp(token, "blacklist") == 0) {
+			;
+		    }
+		    else if (i == 1)
+			port1 = (int) strtol(token, NULL, 10);
+		    else if (i == 2) 
+			port2 = (int) strtol(token, NULL, 10);
+
+		    token = strtok(NULL, " ");
+		    i += 1;
+		}
+
+		// Check peer port range
+		while (iter) {
+		    if (iter->port >= port1 && iter->port <= port2)
+			return -EBLACKLISTED;
+		    iter = iter->next;
+		}
+		
+		break;
+	    }
+	    //whitelist case
+	    case 'w': {
+		char *token = NULL;
+		int i = 0;
+		
+		token = strtok(line, " ");
+		while (token != NULL) {
+		    if (strcmp(token, "whitelist") == 0) {
+			;
+		    }
+		    else if (i == 1)
+			port1 = (int) strtol(token, NULL, 10);
+		    else if (i == 2) 
+			port2 = (int) strtol(token, NULL, 10);
+
+		    token = strtok(NULL, " ");
+		    i += 1;
+		}
+
+		// Check peer port range
+		// If they AREN'T in the port range, reject
+		while (iter) {
+		    if (!(iter->port >= port1 && iter->port <= port2)) {
+			return -ENOTWHITELISTED;
+		    }
+		    // Peer is whitelisted here, if they want to request
+		    iter->whitelisted = 1;
+		    iter = iter->next;
+		}
+		
+		break;
+	    }
+	    // File restriction
+	    case 'f': {
+		char *token = NULL;
+		int i = 0;
+		char *filename;
+		char flag;
+		
+		token = strtok(line, " ");
+		while (token != NULL) {
+		    if (strcmp(token, "file") == 0) {
+			;
+		    }
+		    else if (i == 1) {
+          	        size_t len = strlen(token);
+			filename = malloc(sizeof(char) * len);
+			strcpy(filename, token);
+		    }
+		
+		    token = strtok(NULL, " ");
+		    i += 1;
+		}
+
+		if (strcmp(filename, req_file) == 0) {
+		    if (!iter->whitelisted)
+			return -ERESTRICTEDFILE;
+		}
+		break;
+	    }
+		
+	    case '#':
+		continue;
+	    default:
+		return 0;
+	    }
+    }
+    return 1;
+}
 
 // task_upload(t)
 //	Handles an upload request from another peer.
@@ -711,8 +872,6 @@ static void task_upload(task_t *t)
 			   || (t->tail && t->buf[t->tail-1] == '\n'))
 			break;
 	}
-
-
 	//EXERCISE 2B: check that in current directory
 	char currentDir[PATH_MAX];
 	char realPath[PATH_MAX];
@@ -734,7 +893,6 @@ static void task_upload(task_t *t)
 	  error("* File that trying to access not in current directory!\n");
 	  goto exit;
 	}
-
 	assert(t->head == 0);
 	if (osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
 		error("* Odd request %.*s\n", t->tail, t->buf);
@@ -742,6 +900,34 @@ static void task_upload(task_t *t)
 	}
 	t->head = t->tail = 0;
 
+
+	// At this point we have received and processed the request
+	// Need to check access control file in current directory
+
+	// // Generate peer whitelist and blacklist
+	// int permissions_retval = check_permissions("osp2paccess", t->filename, t->peer_list);
+
+	// if (permissions_retval != 1) {
+	//     osp2p_writef(t->peer_fd, "You do not have permission to access this file.\n");
+	//     char *reason;
+	//     switch(permissions_retval) {
+	//     case -EBLACKLISTED:
+	// 	reason = "You have been blacklisted by this peer.\n";
+	// 	break;
+	//     case -ENOTWHITELISTED:
+	// 	reason = "You have not been whitelisted by this peer.\n";
+	// 	break;
+	//     case -ERESTRICTEDFILE:
+	// 	reason = "The peer has restricted access to this file.\n";
+	// 	break;
+	//     default:
+	// 	exit(-123);
+	//     }
+	    
+	//     osp2p_writef(t->peer_fd, "Reason: %s", reason);
+	//     exit(-1);
+	// }
+	
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
 		error("* Cannot open file %s", t->filename);
@@ -834,18 +1020,44 @@ int main(int argc, char *argv[])
 	}
 
 	// Connect to the tracker and register our files.
+	
 	tracker_task = start_tracker(tracker_addr, tracker_port);
 	listen_task = start_listen();
 	register_files(tracker_task, myalias);
+	
 
 	// First, download files named on command line.
-	for (; argc > 1; argc--, argv++)
-		if ((t = start_download(tracker_task, argv[1])))
-			task_download(t, tracker_task);
+	for (; argc > 1; argc--, argv++) {
+	    if ((t = start_download(tracker_task, argv[1]))) {
+		// Spawn child processes to download
+		pid_t pid = fork();
+		
+		if (pid < 0)
+		    exit(1);
+		else if (pid == 0) {
+		    task_download(t, tracker_task);
+		    exit(0);
+		}
+		else
+		    waitpid(pid, NULL, WNOHANG);
+	    }
+	}
 
 	// Then accept connections from other peers and upload files to them!
-	while ((t = task_listen(listen_task)))
+	while ((t = task_listen(listen_task))) {
+	    pid_t pid = fork();
+
+	    if (pid < 0)
+		exit(1);
+	    else if (pid == 0) {
 		task_upload(t);
+		exit(0);
+	    }
+	    else
+		waitpid(pid, NULL, WNOHANG);
+	    task_upload(t);
+	}
 
 	return 0;
 }
+    

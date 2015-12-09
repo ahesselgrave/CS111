@@ -46,7 +46,7 @@ run-bad: osppeer
 	@mkdir test
 	@echo + ./osppeer -dtest -t13001 cat1.jpg cat2.jpg cat3.jpg
 	@./osppeer -dtest -t13001 cat1.jpg cat2.jpg cat3.jpg
-	
+
 clean:
 	-rm -f *.o *~ osptracker osptracker.cc osppeer
 
