@@ -70,3 +70,35 @@ An issue with using strncpy is that if a file name is longer than FILENAMESIZ,
 the file name will be truncated and when looking for this file, it will be
 invalid. A solution to this issue would be to check if the length of the file
 name > FILENAMESIZ and if true, print an error and skip that file.
+
+
+============================
+DESIGN PROBLEM
+============================
+For our design problem, we opted to do a file access control system similar to
+htaccess in Apache. In the osppeer executable's directory, we read from a file named
+"osp2pacess" where different rules are written in a hosts file fashion. Here
+are the rules we supported:
+
+BLACKLIST:
+Usage: blacklist <port1> <port2>
+Prevents any peer with port p from connecting if port1 <= p <= port2
+
+WHITELIST:
+Usage: whitelist <port1> <port2>
+Prevents any peer with port p from connecting if p < port1 OR p > port2
+
+FILE RESTRICTION:
+Usage: file <filename>
+Prevents any non-whitelisted peer from downloading <filename>
+
+The rules are handled line by line sequentially, so a peer MUST be whitelisted before a file
+restriction line for them to have access to a restricted file.
+
+
+The actual implementation is fairly standard. We used getline to get each line from the file
+and strtok to get each of the fields. For the ports, we used strtol to convert the port number
+to a long that we could compare against. The actual check is performed in a function called
+check_permissions that is called right after a peer connects in task_upload. If the check passes,
+the peer gets the requested file. Otherwise, they get an appropriate error message for why they
+were denied and the connection is ended.

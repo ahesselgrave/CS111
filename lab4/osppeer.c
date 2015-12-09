@@ -904,29 +904,29 @@ static void task_upload(task_t *t)
 	// At this point we have received and processed the request
 	// Need to check access control file in current directory
 
-	// // Generate peer whitelist and blacklist
-	// int permissions_retval = check_permissions("osp2paccess", t->filename, t->peer_list);
+	// Check osp2paccess file for permission rules
+	int permissions_retval = check_permissions("osp2paccess", t->filename, t->peer_list);
 
-	// if (permissions_retval != 1) {
-	//     osp2p_writef(t->peer_fd, "You do not have permission to access this file.\n");
-	//     char *reason;
-	//     switch(permissions_retval) {
-	//     case -EBLACKLISTED:
-	// 	reason = "You have been blacklisted by this peer.\n";
-	// 	break;
-	//     case -ENOTWHITELISTED:
-	// 	reason = "You have not been whitelisted by this peer.\n";
-	// 	break;
-	//     case -ERESTRICTEDFILE:
-	// 	reason = "The peer has restricted access to this file.\n";
-	// 	break;
-	//     default:
-	// 	exit(-123);
-	//     }
+	if (permissions_retval != 1) {
+	    osp2p_writef(t->peer_fd, "You do not have permission to access this file.\n");
+	    char *reason;
+	    switch(permissions_retval) {
+	    case -EBLACKLISTED:
+		reason = "You have been blacklisted by this peer.\n";
+		break;
+	    case -ENOTWHITELISTED:
+		reason = "You have not been whitelisted by this peer.\n";
+		break;
+	    case -ERESTRICTEDFILE:
+		reason = "The peer has restricted access to this file.\n";
+		break;
+	    default:
+		exit(-123);
+	    }
 	    
-	//     osp2p_writef(t->peer_fd, "Reason: %s", reason);
-	//     exit(-1);
-	// }
+	    osp2p_writef(t->peer_fd, "Reason: %s", reason);
+	    exit(-1);
+	}
 	
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
